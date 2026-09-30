@@ -2,9 +2,10 @@
 """Build a temporary Ubuntu boot image with the RAM-proven Polaris audio stack.
 
 This starts from the byte-for-byte backup of the installed recovery image and
-does not create an image for flashing. The existing Ubuntu userdata remains
-untouched until the normal initramfs switch_root, and audio modules stay in the
-initramfs rather than being copied to userdata.
+never flashes a partition itself. The output was first verified with fastboot
+boot, then copied byte-for-byte as the recovery candidate. The existing Ubuntu
+userdata remains untouched until the normal initramfs switch_root, and audio
+modules stay in the initramfs rather than being copied to userdata.
 """
 
 from __future__ import annotations
