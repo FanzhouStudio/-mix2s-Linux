@@ -1,0 +1,30 @@
+# Large upstream source, unpacked root filesystems, downloads and build output.
+/src/
+/rootfs/
+/rootfs-ubuntu-26.04.1/
+/downloads/
+/out/
+/out-incomplete/
+/tools/
+/artifacts/
+
+# Device logs, partition/configuration backups and SSH credentials.
+/diagnostics/logs/
+/diagnostics/backups/
+/diagnostics/ssh/
+**/__pycache__/
+*.pyc
+*.key
+*.pem
+
+# Keep raw disk images and downloaded packages out of future commits.
+*.img
+*.raw
+*.deb
+*.apk
+*.cpio
+*.cpio.gz
+*.tar
+*.tar.gz
+*.tar.xz
+*.zst
