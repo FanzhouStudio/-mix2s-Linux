@@ -1,0 +1,13 @@
+[Unit]
+Description=Load the Polaris fuel gauge and USB charging status drivers
+After=local-fs.target systemd-modules-load.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/polaris-battery-prepare
+RemainAfterExit=yes
+TimeoutStartSec=20
+
+[Install]
+WantedBy=multi-user.target
