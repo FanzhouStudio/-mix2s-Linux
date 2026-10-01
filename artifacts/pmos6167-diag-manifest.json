@@ -1,0 +1,36 @@
+{
+  "kernel_release": "6.16.7-sdm845",
+  "repository_version": "6.16.7-r3",
+  "trust": "signed official APKINDEX -> control SHA1 -> data SHA256",
+  "package_data_sha256": "37403a69f097cfee7635e649fd73572451b21519f7e8b763f4f1e7670e78263c",
+  "kernel_sha256": "c6ff3e49830aa21a79dd983ca4fcb06c36d4d399b65c54642d49b856e1608fd2",
+  "dtb_sha256": "578e35a524774a9ba584d52ddd6c5b1745dd38893f42eb406289bb89abeba674",
+  "image": "polaris-boot-pmos6167-readonly-diag-v1.img",
+  "image_size": 16080896,
+  "image_sha256": "5df19813027350a0d1a8981e4c8f68312c79a07cbe766a72c3005c3d3db2dfec",
+  "ramdisk_size": 1108703,
+  "booted": false,
+  "purpose": "temporary read-only RAM diagnostic boot; no Ubuntu switch_root",
+  "attempt_1": {
+    "date": "2026-09-28 17:38 CST",
+    "device": "polaris",
+    "fastboot_serial": "283b9bce",
+    "unlocked": true,
+    "max_download_size": 805306368,
+    "fastboot_boot": "Sending OKAY; Booting OKAY",
+    "linux_boot_confirmed": false,
+    "usb_acm_seen": false
+  },
+  "attempt_2": {
+    "date": "2026-10-01 16:25 CST",
+    "device": "polaris",
+    "fastboot_serial": "283b9bce",
+    "unlocked": true,
+    "max_download_size": 805306368,
+    "fastboot_boot": "Sending OKAY; Booting OKAY",
+    "linux_boot_confirmed": false,
+    "usb_acm_seen": false,
+    "screen_status": "awaiting user report",
+    "partition_writes": false
+  }
+}
