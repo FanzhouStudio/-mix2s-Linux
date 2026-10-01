@@ -72,7 +72,8 @@ setup_usb() {
 (
     if setup_usb; then
         while [ ! -c /dev/ttyGS0 ]; do sleep 1; done
-        while [ ! -e /run/start-ubuntu-overlay ]; do
+        while :; do
+            if [ -e /run/start-ubuntu-overlay ]; then sleep 1; continue; fi
             setsid -c /bin/sh /bin/diag-console </dev/ttyGS0 >/dev/ttyGS0 2>&1
             sleep 1
         done
@@ -99,14 +100,19 @@ setup_usb() {
 ) &
 
 boot_ubuntu_overlay() {
+    exec >/dev/ttyGS0 2>&1
+    echo 'OVERLAY: checking Ubuntu root'
     [ "$(cat /run/ubuntu-status 2>/dev/null)" = READY ] || return 1
     [ -x /run/ubuntu/usr/lib/systemd/systemd ] || return 1
+    echo 'OVERLAY: loading filesystem module'
     insmod /lib/modules/6.16.7-sdm845/diag/overlay.ko || return 1
+    echo 'OVERLAY: mounting RAM upper layer'
     mkdir -p /run/overlay /newroot
     mount -t tmpfs -o size=2048m,nosuid,nodev tmpfs /run/overlay || return 1
     mkdir -p /run/overlay/upper /run/overlay/work
     mount -t overlay overlay -o lowerdir=/run/ubuntu,upperdir=/run/overlay/upper,workdir=/run/overlay/work /newroot || return 1
     [ -r /newroot/etc/polaris-ubuntu-rootfs ] || return 1
+    echo 'OVERLAY: installing matching modules in RAM'
     mkdir -p /newroot/lib/modules/6.16.7-sdm845
     cp -a /lib/modules/6.16.7-sdm845/. /newroot/lib/modules/6.16.7-sdm845/ || return 1
     mkdir -p /newroot/lib/firmware/qcom/sdm845/polaris
@@ -116,7 +122,9 @@ boot_ubuntu_overlay() {
         ln -sfn /dev/null "/newroot/etc/systemd/system/$unit" || return 1
     done
     for f in /newroot/etc/modules-load.d/polaris*; do [ ! -e "$f" ] || rm -f "$f"; done
+    echo 'OVERLAY: moving virtual filesystems'
     for point in dev proc sys run tmp; do
+        echo "OVERLAY: moving $point"
         mkdir -p "/newroot/$point"
         mount --move "/$point" "/newroot/$point" || return 1
     done
