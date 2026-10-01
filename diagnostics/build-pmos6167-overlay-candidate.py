@@ -20,8 +20,8 @@ ART = BASE / "artifacts"
 SOURCE = ART / "polaris-boot-pmos6167-panel-readonly-diag-v3.img"
 SOURCE_SHA256 = "80d8b6945eb5def7108b4c88840968360839057dee00a554eaaa331900ff0b9e"
 MODULES = ART / "pmos6167/lib/modules/6.16.7-sdm845"
-DEST = ART / "polaris-boot-pmos6167-panel-overlay-diag-v6.img"
-MANIFEST = ART / "pmos6167-panel-overlay-diag-v6-manifest.json"
+DEST = ART / "polaris-boot-pmos6167-panel-overlay-diag-v7.img"
+MANIFEST = ART / "pmos6167-panel-overlay-diag-v7-manifest.json"
 
 
 def parse_newc(raw: bytes) -> dict[str, tuple[int, bytes, int, int]]:

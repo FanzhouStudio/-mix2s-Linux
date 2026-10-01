@@ -116,6 +116,9 @@ boot_ubuntu_overlay() {
     mkdir -p /newroot/lib/modules/6.16.7-sdm845
     cp -a /lib/modules/6.16.7-sdm845/. /newroot/lib/modules/6.16.7-sdm845/ || return 1
     mkdir -p /newroot/lib/firmware/qcom/sdm845/polaris
+    # The installed root has a symlink into read-only vendor here. Replace the
+    # overlay-visible link first so cp cannot follow it into the real partition.
+    rm -f /newroot/lib/firmware/qcom/sdm845/polaris/a630_zap.mbn || return 1
     cp -a /lib/firmware/qcom/sdm845/polaris/. /newroot/lib/firmware/qcom/sdm845/polaris/ || return 1
     mkdir -p /newroot/etc/systemd/system
     for unit in polaris-stability.service polaris-battery.service polaris-performance.service polaris-sim-prepare.service polaris-slpi-guard.service polaris-touch-wake.service polaris-bluetooth-up.service polaris-wifi-up.service polaris-rmnet.service polaris-firstboot-desktop.service polaris-grow-root.service polaris-cleanup-initramfs-watch.service polaris-audio.service apt-daily.service apt-daily.timer apt-daily-upgrade.service apt-daily-upgrade.timer; do
