@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories=Development;
+Comment=Clash Verge Rev (shared-memory WebKit renderer for Polaris)
+Exec=env WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 clash-verge %u
+StartupWMClass=clash-verge
+Icon=clash-verge
+Name=Clash Verge
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/clash;

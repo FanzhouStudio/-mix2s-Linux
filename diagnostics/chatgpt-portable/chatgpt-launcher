@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+if ! mountpoint -q /usr/lib/chatgpt; then
+    printf '%s\n' 'ChatGPT image is not mounted; check polaris-chatgpt-mount.service' >&2
+    exit 1
+fi
+
+# The older SDM845 GPU stack has previously frozen during accelerated apps.
+# Keep Chromium's software rendering for this application only.
+exec /usr/lib/chatgpt/codex-launcher --disable-gpu "$@"

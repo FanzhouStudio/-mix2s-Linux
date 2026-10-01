@@ -1,0 +1,17 @@
+[Unit]
+Description=Mount ChatGPT ARM64 read-only application image
+After=local-fs.target
+Before=display-manager.service
+ConditionPathExists=/var/lib/polaris-chatgpt/chatgpt.squashfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/usr/bin/mkdir -p /usr/lib/chatgpt
+ExecStart=/usr/bin/mount -t squashfs -o loop,ro,nodev,nosuid /var/lib/polaris-chatgpt/chatgpt.squashfs /usr/lib/chatgpt
+ExecStop=/usr/bin/umount /usr/lib/chatgpt
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

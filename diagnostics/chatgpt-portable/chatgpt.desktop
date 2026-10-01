@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=ChatGPT
+Comment=ChatGPT by OpenAI
+Exec=/usr/local/bin/chatgpt %U
+Icon=/usr/local/share/pixmaps/chatgpt.png
+Type=Application
+Terminal=false
+StartupNotify=true
+Categories=Utility;
