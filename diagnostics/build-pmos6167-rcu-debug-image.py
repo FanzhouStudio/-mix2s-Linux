@@ -78,7 +78,7 @@ def main() -> None:
         "image_bytes": len(image),
         "boot_option": PARAMETER.decode(),
         "activation": "manual touch /run/start-ubuntu-overlay; exit",
-        "rootfs": "userdata ext4 ro,norecovery plus tmpfs overlay after manual activation",
+        "rootfs": "userdata ext4 ro,noload plus tmpfs overlay after manual activation",
         "phone_partition_writes": False,
         "booted": False,
     }
