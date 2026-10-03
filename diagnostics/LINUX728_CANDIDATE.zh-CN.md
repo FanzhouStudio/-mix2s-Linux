@@ -51,6 +51,10 @@
 
 第十版候选在第九版的同一保留区上，只为 Polaris 的 MDSS IOMMU domain 在接入设备前建立 `0x9d400000..0x9f7fffff` 的只读恒等映射。改动位于 `diagnostics/patches/0007-linux728-polaris-xbl-display-iommu-map.patch`；构建脚本会在编译后还原上游源文件。镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-iommu-diag.img` 的 SHA-256 为 `6bc2b947cca1ed6a3a5fbb1d21805396ddac8f8576ba07a05d49cecc8cad4505`，仍是只读内存诊断，不挂载 userdata，不刷写分区。该实验应先确认日志出现映射成功，再比较 SID `0x880`/`0xc88` 故障、DSI FIFO 和背光；即使故障消失，也还需实际亮屏和稳定性验证。目前尚未在手机上启动。
 
-第九版黑屏后，用户已重启回现有 Linux 桌面；USB ACM 重新枚举，串口 `uname -r` 确认为 `6.1-sdm845`。第十版尚待 RAM-only 临时启动，当前 recovery 未改动。
+第九版黑屏后，用户已重启回现有 Linux 桌面；USB ACM 重新枚举，串口 `uname -r` 确认为 `6.1-sdm845`。当前 recovery 未改动。
+
+第十版已在 Fastboot 设备 `product: polaris` 上执行 `fastboot boot`，发送 17,752,064 字节镜像及 Booting 均返回 `OKAY`；设备的 `max-download-size` 为 805,306,368 字节。用户观察到有背光但无文字，VMware 报新 USB 无法识别；Ubuntu-Max 只记录到 Fastboot USB 断开，没有新 USB ACM 枚举。无法读取新内核日志，也无法确认映射代码是否执行。该版本没有达到可用显示或可诊断串口状态，不能刷写；有背光不能视为显示修复成功。下一轮需先恢复可靠的早期日志通道，再判断是否应继续此映射方案。
+
+用户已重启回原 Linux 桌面，USB ACM 重新出现，串口 `uname -r` 再次确认为 `6.1-sdm845`。第十一版只针对诊断可见性：将 Polaris 上 MSM DRM 的注册延后 45 秒，让现有 initramfs 有机会先建立 USB ACM，然后仍执行第十版的显示 IOMMU 映射。延迟注册函数及其调用链已移出 `__init` 段；重新编译无 section mismatch 警告。诊断镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-iommu-serial-first.img` 为 17,752,064 字节，SHA-256 `04c87439efc2d0d58902be3feafcd4a5efe102d107e9525cedd66c35558fa0c8`。这不是修复候选，尚未在手机上启动；只应由 `fastboot boot` 从内存测试，不得刷写 recovery。
 
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。

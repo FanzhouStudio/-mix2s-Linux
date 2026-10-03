@@ -1,0 +1,243 @@
+--- a/drivers/gpu/drm/msm/msm_drv.c
++++ b/drivers/gpu/drm/msm/msm_drv.c
+@@ -10,6 +10,7 @@
+ #include <linux/debugfs.h>
+ #include <linux/of_address.h>
+ #include <linux/uaccess.h>
++#include <linux/workqueue.h>
+ 
+ #include <drm/drm_drv.h>
+ #include <drm/drm_file.h>
+@@ -1121,7 +1122,7 @@
+ 	msm_drm_uninit(&pdev->dev, ops);
+ }
+ 
+-static int __init msm_drm_register(void)
++static int msm_drm_register_now(void)
+ {
+ 	if (!modeset)
+ 		return -EINVAL;
+@@ -1139,8 +1140,30 @@
+ 	return 0;
+ }
+ 
++static void polaris_drm_delayed_register(struct work_struct *work)
++{
++	pr_info("Polaris diagnostic: starting deferred MSM DRM registration\n");
++	msm_drm_register_now();
++}
++
++static DECLARE_DELAYED_WORK(polaris_drm_register_work,
++			   polaris_drm_delayed_register);
++
++static int __init msm_drm_register(void)
++{
++	if (of_machine_is_compatible("xiaomi,polaris")) {
++		pr_info("Polaris diagnostic: MSM DRM registration deferred 45 seconds\n");
++		schedule_delayed_work(&polaris_drm_register_work,
++				      msecs_to_jiffies(45000));
++		return 0;
++	}
++
++	return msm_drm_register_now();
++}
++
+ static void __exit msm_drm_unregister(void)
+ {
++	cancel_delayed_work_sync(&polaris_drm_register_work);
+ 	DBG("fini");
+ 	msm_mdss_unregister();
+ 	msm_mdp4_unregister();
+--- a/drivers/gpu/drm/msm/msm_drv.h
++++ b/drivers/gpu/drm/msm/msm_drv.h
+@@ -278,7 +278,7 @@
+ #ifdef CONFIG_DRM_MSM_HDMI
+ int msm_hdmi_modeset_init(struct hdmi *hdmi, struct drm_device *dev,
+ 		struct drm_encoder *encoder);
+-void __init msm_hdmi_register(void);
++void msm_hdmi_register(void);
+ void __exit msm_hdmi_unregister(void);
+ #else
+ static inline int msm_hdmi_modeset_init(struct hdmi *hdmi, struct drm_device *dev,
+@@ -286,7 +286,7 @@
+ {
+ 	return -EINVAL;
+ }
+-static inline void __init msm_hdmi_register(void) {}
++static inline void msm_hdmi_register(void) {}
+ static inline void __exit msm_hdmi_unregister(void) {}
+ #endif
+ 
+@@ -294,7 +294,7 @@
+ #ifdef CONFIG_DRM_MSM_DSI
+ int dsi_dev_attach(struct platform_device *pdev);
+ void dsi_dev_detach(struct platform_device *pdev);
+-void __init msm_dsi_register(void);
++void msm_dsi_register(void);
+ void __exit msm_dsi_unregister(void);
+ int msm_dsi_modeset_init(struct msm_dsi *msm_dsi, struct drm_device *dev,
+ 			 struct drm_encoder *encoder);
+@@ -306,7 +306,7 @@
+ struct drm_dsc_config *msm_dsi_get_dsc_config(struct msm_dsi *msm_dsi);
+ const char *msm_dsi_get_te_source(struct msm_dsi *msm_dsi);
+ #else
+-static inline void __init msm_dsi_register(void)
++static inline void msm_dsi_register(void)
+ {
+ }
+ static inline void __exit msm_dsi_unregister(void)
+@@ -351,7 +351,7 @@
+ 
+ struct msm_dp;
+ #ifdef CONFIG_DRM_MSM_DP
+-int __init msm_dp_register(void);
++int msm_dp_register(void);
+ void __exit msm_dp_unregister(void);
+ int msm_dp_modeset_init(struct msm_dp *dp_display, struct drm_device *dev,
+ 			 struct drm_encoder *encoder, bool yuv_supported);
+@@ -361,7 +361,7 @@
+ bool msm_dp_wide_bus_available(const struct msm_dp *dp_display);
+ 
+ #else
+-static inline int __init msm_dp_register(void)
++static inline int msm_dp_register(void)
+ {
+ 	return -EINVAL;
+ }
+--- a/drivers/gpu/drm/msm/msm_gpu.h
++++ b/drivers/gpu/drm/msm/msm_gpu.h
+@@ -757,7 +757,7 @@
+ 
+ struct msm_gpu *adreno_load_gpu(struct drm_device *dev);
+ bool adreno_has_gpu(struct device_node *node);
+-void __init adreno_register(void);
++void adreno_register(void);
+ void __exit adreno_unregister(void);
+ 
+ static inline void msm_submitqueue_put(struct msm_gpu_submitqueue *queue)
+--- a/drivers/gpu/drm/msm/msm_mdss.c
++++ b/drivers/gpu/drm/msm/msm_mdss.c
+@@ -570,7 +570,7 @@
+ 	},
+ };
+ 
+-void __init msm_mdss_register(void)
++void msm_mdss_register(void)
+ {
+ 	platform_driver_register(&mdss_platform_driver);
+ }
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -1529,7 +1529,7 @@
+ 	},
+ };
+ 
+-void __init msm_dpu_register(void)
++void msm_dpu_register(void)
+ {
+ 	platform_driver_register(&dpu_driver);
+ }
+--- a/drivers/gpu/drm/msm/disp/mdp5/mdp5_kms.c
++++ b/drivers/gpu/drm/msm/disp/mdp5/mdp5_kms.c
+@@ -914,7 +914,7 @@
+ 	},
+ };
+ 
+-void __init msm_mdp_register(void)
++void msm_mdp_register(void)
+ {
+ 	DBG("");
+ 	platform_driver_register(&mdp5_driver);
+--- a/drivers/gpu/drm/msm/disp/mdp4/mdp4_kms.c
++++ b/drivers/gpu/drm/msm/disp/mdp4/mdp4_kms.c
+@@ -564,7 +564,7 @@
+ 	},
+ };
+ 
+-void __init msm_mdp4_register(void)
++void msm_mdp4_register(void)
+ {
+ 	platform_driver_register(&mdp4_platform_driver);
+ }
+--- a/drivers/gpu/drm/msm/adreno/adreno_device.c
++++ b/drivers/gpu/drm/msm/adreno/adreno_device.c
+@@ -416,7 +416,7 @@
+ 	},
+ };
+ 
+-void __init adreno_register(void)
++void adreno_register(void)
+ {
+ 	if (skip_gpu)
+ 		return;
+--- a/drivers/gpu/drm/msm/dsi/dsi.c
++++ b/drivers/gpu/drm/msm/dsi/dsi.c
+@@ -216,7 +216,7 @@
+ 	},
+ };
+ 
+-void __init msm_dsi_register(void)
++void msm_dsi_register(void)
+ {
+ 	DBG("");
+ 	msm_dsi_phy_driver_register();
+@@ -267,4 +267,3 @@
+ 	msm_dsi_host_snapshot(disp_state, msm_dsi->host);
+ 	msm_dsi_phy_snapshot(disp_state, msm_dsi->phy);
+ }
+-
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
+@@ -724,7 +724,7 @@
+ 	},
+ };
+ 
+-void __init msm_dsi_phy_driver_register(void)
++void msm_dsi_phy_driver_register(void)
+ {
+ 	platform_driver_register(&dsi_phy_platform_driver);
+ }
+--- a/drivers/gpu/drm/msm/hdmi/hdmi.c
++++ b/drivers/gpu/drm/msm/hdmi/hdmi.c
+@@ -471,7 +471,7 @@
+ 	},
+ };
+ 
+-void __init msm_hdmi_register(void)
++void msm_hdmi_register(void)
+ {
+ 	msm_hdmi_phy_driver_register();
+ 	platform_driver_register(&msm_hdmi_driver);
+--- a/drivers/gpu/drm/msm/hdmi/hdmi.h
++++ b/drivers/gpu/drm/msm/hdmi/hdmi.h
+@@ -169,7 +169,7 @@
+ void msm_hdmi_phy_resource_disable(struct hdmi_phy *phy);
+ void msm_hdmi_phy_powerup(struct hdmi_phy *phy, unsigned long pixclock);
+ void msm_hdmi_phy_powerdown(struct hdmi_phy *phy);
+-void __init msm_hdmi_phy_driver_register(void);
++void msm_hdmi_phy_driver_register(void);
+ void __exit msm_hdmi_phy_driver_unregister(void);
+ 
+ #ifdef CONFIG_COMMON_CLK
+--- a/drivers/gpu/drm/msm/hdmi/hdmi_phy.c
++++ b/drivers/gpu/drm/msm/hdmi/hdmi_phy.c
+@@ -219,7 +219,7 @@
+ 	},
+ };
+ 
+-void __init msm_hdmi_phy_driver_register(void)
++void msm_hdmi_phy_driver_register(void)
+ {
+ 	platform_driver_register(&msm_hdmi_phy_platform_driver);
+ }
+--- a/drivers/gpu/drm/msm/dp/dp_display.c
++++ b/drivers/gpu/drm/msm/dp/dp_display.c
+@@ -1272,7 +1272,7 @@
+ 	},
+ };
+ 
+-int __init msm_dp_register(void)
++int msm_dp_register(void)
+ {
+ 	int ret;
+ 

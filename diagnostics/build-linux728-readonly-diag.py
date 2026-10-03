@@ -58,20 +58,26 @@ def main() -> None:
                         help="Use the DTB variant reserving XBL's 36 MiB scanout buffer")
     parser.add_argument("--xbl-iommu-map", action="store_true",
                         help="Map the reserved XBL scanout buffer before display IOMMU attach")
+    parser.add_argument("--serial-first", action="store_true",
+                        help="Delay Polaris MSM DRM by 45 seconds so USB ACM starts first")
     args = parser.parse_args()
+    if args.serial_first and (args.legacy_dpu_planes or args.include_zap_firmware or
+                              args.reserve_xbl_framebuffer or args.xbl_iommu_map):
+        parser.error("Serial-first is a standalone diagnostic variant")
     if args.xbl_iommu_map and (args.legacy_dpu_planes or args.include_zap_firmware):
         parser.error("XBL IOMMU handoff must be isolated from other kernel changes")
     if args.legacy_dpu_planes and args.reserve_xbl_framebuffer:
         parser.error("Test legacy planes and XBL reservation separately")
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
-    kernel_name = "Image-xbl-iommu.gz" if args.xbl_iommu_map else "Image.gz"
+    kernel_name = ("Image-xbl-iommu-serial-first.gz" if args.serial_first else
+                   "Image-xbl-iommu.gz" if args.xbl_iommu_map else "Image.gz")
     kernel = (OUT / kernel_name).read_bytes()
     dtb_name = ("sdm845-xiaomi-polaris-xbl-reserved.dtb"
-                if args.reserve_xbl_framebuffer or args.xbl_iommu_map
+                if args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first
                 else "sdm845-xiaomi-polaris.dtb")
     dtb = (OUT / dtb_name).read_bytes()
-    if (args.reserve_xbl_framebuffer or args.xbl_iommu_map) and b"framebuffer@9d400000" not in dtb:
+    if (args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first) and b"framebuffer@9d400000" not in dtb:
         raise ValueError("Selected DTB has no XBL framebuffer reservation")
     config = (OUT / "kernel.config").read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
@@ -143,13 +149,17 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-xbl-iommu-diag.img"
+    image_name = ("polaris-linux728-xbl-iommu-serial-first.img"
+                  if args.serial_first else
+                  "polaris-linux728-xbl-iommu-diag.img"
                   if args.xbl_iommu_map else
                   "polaris-linux728-xbl-reserved-diag.img"
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("xbl-iommu-diag-manifest.json"
+    manifest_name = ("xbl-iommu-serial-first-manifest.json"
+                     if args.serial_first else
+                     "xbl-iommu-diag-manifest.json"
                      if args.xbl_iommu_map else
                      "xbl-reserved-diag-manifest.json"
                      if args.reserve_xbl_framebuffer else
@@ -169,8 +179,9 @@ def main() -> None:
         "partition_flash": False,
         "zap_firmware": args.include_zap_firmware,
         "legacy_dpu_planes": args.legacy_dpu_planes,
-        "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer or args.xbl_iommu_map,
-        "xbl_iommu_map": args.xbl_iommu_map,
+        "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first,
+        "xbl_iommu_map": args.xbl_iommu_map or args.serial_first,
+        "display_probe_delay_s": 45 if args.serial_first else 0,
         "cmdline": cmdline.decode(),
         "device_boot_verified": False,
     }
