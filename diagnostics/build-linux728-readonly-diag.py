@@ -22,6 +22,8 @@ FIRMWARE_HASHES = {
     "a630_gmu.bin": "da8d9b1b1f5c1a0b311f32567093b4828f3c80031dd8435f91ac13c664e173a6",
     "a630_sqe.fw": "a4b9e92bbeaff044d7713610d2ba8526d733756b977a9625958fd264dfb8eaa3",
 }
+ZAP_FIRMWARE = ART / "firmware/polaris/a630_zap.mbn"
+ZAP_FIRMWARE_HASH = "c0a830808c7ae886e5a5b6dec48afb9c9805d0579d9cac498ebc36b8b06bedde"
 IMAGE = OUT / "polaris-linux728-readonly-diag.img"
 MANIFEST = OUT / "readonly-diag-manifest.json"
 
@@ -88,6 +90,8 @@ def main() -> None:
     for name, digest in FIRMWARE_HASHES.items():
         add("lib/firmware/qcom/" + name, stat.S_IFREG | 0o644,
             read_verified(FIRMWARE / name, digest))
+    add("lib/firmware/qcom/sdm845/polaris/a630_zap.mbn", stat.S_IFREG | 0o644,
+        read_verified(ZAP_FIRMWARE, ZAP_FIRMWARE_HASH))
     for name, major, minor in (("console", 5, 1), ("null", 1, 3),
                                ("tty", 5, 0), ("tty1", 4, 1)):
         add("dev/" + name, stat.S_IFCHR | 0o600, b"", major, minor)

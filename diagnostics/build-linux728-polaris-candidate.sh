@@ -26,6 +26,12 @@ if [[ ! -f "$src_dir/Makefile" ]]; then
     -i "$repo_dir/diagnostics/patches/0004-linux728-polaris-firmware-paths.patch"
 fi
 
+if ! grep -Fqx $'\tfbi->flags |= FBINFO_VIRTFB;' \
+  "$src_dir/drivers/gpu/drm/msm/msm_fbdev.c"; then
+  patch -p1 -d "$src_dir" \
+    -i "$repo_dir/diagnostics/patches/0005-linux728-msm-fbdev-virtfb.patch"
+fi
+
 [[ $(sed -n '2p' "$src_dir/Makefile") == 'VERSION = 7' ]]
 [[ $(sed -n '3p' "$src_dir/Makefile") == 'PATCHLEVEL = 2' ]]
 [[ $(sed -n '4p' "$src_dir/Makefile") == 'SUBLEVEL = 8' ]]
