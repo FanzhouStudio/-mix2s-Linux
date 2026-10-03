@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import gzip
 import hashlib
 import json
@@ -48,6 +49,10 @@ def append_newc(out: bytearray, name: str, mode: int, data: bytes, inode: int,
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--include-zap-firmware", action="store_true",
+                        help="Test GPU secure firmware separately from fbdev changes")
+    args = parser.parse_args()
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
     kernel = (OUT / "Image.gz").read_bytes()
@@ -90,8 +95,9 @@ def main() -> None:
     for name, digest in FIRMWARE_HASHES.items():
         add("lib/firmware/qcom/" + name, stat.S_IFREG | 0o644,
             read_verified(FIRMWARE / name, digest))
-    add("lib/firmware/qcom/sdm845/polaris/a630_zap.mbn", stat.S_IFREG | 0o644,
-        read_verified(ZAP_FIRMWARE, ZAP_FIRMWARE_HASH))
+    if args.include_zap_firmware:
+        add("lib/firmware/qcom/sdm845/polaris/a630_zap.mbn", stat.S_IFREG | 0o644,
+            read_verified(ZAP_FIRMWARE, ZAP_FIRMWARE_HASH))
     for name, major, minor in (("console", 5, 1), ("null", 1, 3),
                                ("tty", 5, 0), ("tty1", 4, 1)):
         add("dev/" + name, stat.S_IFCHR | 0o600, b"", major, minor)
@@ -127,6 +133,7 @@ def main() -> None:
         "image_bytes": len(image),
         "storage_mounts": False,
         "partition_flash": False,
+        "zap_firmware": args.include_zap_firmware,
         "device_boot_verified": False,
     }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
