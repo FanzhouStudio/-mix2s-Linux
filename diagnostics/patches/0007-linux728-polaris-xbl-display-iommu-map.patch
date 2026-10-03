@@ -1,0 +1,50 @@
+--- a/drivers/gpu/drm/msm/msm_iommu.c
++++ b/drivers/gpu/drm/msm/msm_iommu.c
+@@ -7,6 +7,7 @@
+ #include <linux/adreno-smmu-priv.h>
+ #include <linux/io-pgtable.h>
+ #include <linux/kmemleak.h>
++#include <linux/of.h>
+ #include "msm_drv.h"
+ #include "msm_gpu_trace.h"
+ #include "msm_mmu.h"
+@@ -728,6 +729,8 @@ struct msm_mmu *msm_iommu_new(struct device *dev, unsigned long quirks)
+ 	struct iommu_domain *domain;
+ 	struct msm_iommu *iommu;
+ 	int ret;
++	struct device_node *xbl_node;
++	u32 xbl_reg[4];
+ 
+ 	if (!device_iommu_mapped(dev))
+ 		return ERR_PTR(-ENODEV);
+@@ -749,4 +752,30 @@ struct msm_mmu *msm_iommu_new(struct device *dev, unsigned long quirks)
+ 
+ 	mutex_init(&iommu->init_lock);
+ 
++	/*
++	 * Diagnostic only: XBL's splash buffer may still be scanned out as
++	 * MDSS changes from the firmware's address space to this new domain.
++	 * Restrict the identity mapping to Polaris with an exact DT reservation.
++	 */
++	if (of_machine_is_compatible("xiaomi,polaris") &&
++	    of_device_is_compatible(dev->of_node, "qcom,sdm845-mdss")) {
++		xbl_node = of_find_node_by_path("/reserved-memory/framebuffer@9d400000");
++		if (xbl_node) {
++			ret = of_property_read_u32_array(xbl_node, "reg", xbl_reg, 4);
++			of_node_put(xbl_node);
++			if (!ret && !xbl_reg[0] && xbl_reg[1] == 0x9d400000 &&
++			    !xbl_reg[2] && xbl_reg[3] == 0x02400000) {
++				ret = iommu_map(domain, 0x9d400000, 0x9d400000,
++						0x02400000, IOMMU_READ, GFP_KERNEL);
++				if (ret) {
++					dev_err(dev, "XBL display IOMMU map failed: %d\n", ret);
++					iommu_domain_free(domain);
++					kfree(iommu);
++					return ERR_PTR(ret);
++				}
++				dev_info(dev, "diagnostic XBL display IOMMU read map installed\n");
++			}
++		}
++	}
++
+ 	ret = iommu_attach_device(iommu->domain, dev);
