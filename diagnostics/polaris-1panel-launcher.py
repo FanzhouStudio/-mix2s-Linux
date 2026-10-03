@@ -2,12 +2,17 @@
 """Show the phone's LAN-only 1Panel address without starting a browser."""
 
 from ipaddress import ip_address, ip_network
+import os
 from pathlib import Path
 import subprocess
+
+# This phone's Adreno Vulkan path reports VK_ERROR_DEVICE_LOST for GTK windows.
+os.environ["GSK_RENDERER"] = "cairo"
 
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, Gtk  # noqa: E402
 
 
