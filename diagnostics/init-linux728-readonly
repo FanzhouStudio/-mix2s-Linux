@@ -26,15 +26,33 @@ protect_blocks() {
 }
 
 setup_usb() {
-    # CONFIG_USB_G_SERIAL is built in and binds the UDC before PID 1 starts.
-    # Reusing it avoids a second ConfigFS gadget competing for the same UDC.
+    mount -t configfs configfs /sys/kernel/config || return 1
+    g=/sys/kernel/config/usb_gadget/polaris_diag
+    mkdir "$g" || return 1
+    echo 0x0525 >"$g/idVendor"
+    echo 0xa4a7 >"$g/idProduct"
+    echo 0x0200 >"$g/bcdUSB"
+    mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409"
+    echo polaris-linux728-diag >"$g/strings/0x409/serialnumber"
+    echo 'Polaris diagnostics' >"$g/strings/0x409/manufacturer"
+    echo 'Linux 7.2.8 RAM-only' >"$g/strings/0x409/product"
+    echo ACM >"$g/configs/c.1/strings/0x409/configuration"
+    echo 100 >"$g/configs/c.1/MaxPower"
+    mkdir "$g/functions/acm.usb0" || return 1
+    ln -s "$g/functions/acm.usb0" "$g/configs/c.1/acm.usb0" || return 1
+    # Replays the early printk ring buffer after ACM binds on the host.
+    echo 1 >"$g/functions/acm.usb0/console" || return 1
     n=0
     while [ "$n" -lt 60 ]; do
-        if [ -c /dev/ttyGS0 ]; then
-            echo READY >/run/usb-status
-            echo 'Using built-in g_serial ACM'
-            return 0
-        fi
+        for c in /sys/class/udc/*; do
+            [ -e "$c" ] || continue
+            [ -z "$(cat "$c/function" 2>/dev/null)" ] || continue
+            if echo "${c##*/}" >"$g/UDC"; then
+                echo READY >/run/usb-status
+                echo "ACM bound: ${c##*/}"
+                return 0
+            fi
+        done
         n=$((n+1)); sleep 1
     done
     echo FAILED >/run/usb-status

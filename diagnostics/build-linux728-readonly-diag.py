@@ -47,12 +47,15 @@ def main() -> None:
     dtb = (OUT / "sdm845-xiaomi-polaris.dtb").read_bytes()
     config = (OUT / "kernel.config").read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
-                   "USB_CONFIGFS", "USB_CONFIGFS_ACM", "BACKLIGHT_QCOM_WLED",
+                   "USB_CONFIGFS", "USB_CONFIGFS_ACM", "U_SERIAL_CONSOLE",
+                   "BACKLIGHT_QCOM_WLED",
                    "REGULATOR_QCOM_LABIBB"):
         if f"CONFIG_{option}=y\n" not in config:
             raise ValueError(f"Required built-in driver missing: {option}")
     if gzip.decompress(kernel)[56:60] != b"ARM\x64" or dtb[:4] != b"\xd0\x0d\xfe\xed":
         raise ValueError("Unexpected kernel or DTB format")
+    if "# CONFIG_USB_G_SERIAL is not set\n" not in config:
+        raise ValueError("Legacy gadget must not claim the UDC before init")
     if boot[:8] != b"ANDROID!":
         raise ValueError("Unexpected reference boot image")
     fields = list(struct.unpack_from("<10I", boot, 8))
@@ -90,7 +93,7 @@ def main() -> None:
     header = bytearray(boot[:page])
     fields[0], fields[2] = len(payload), len(ramdisk)
     struct.pack_into("<10I", header, 8, *fields)
-    cmdline = b"console=tty0 loglevel=5 panic=0 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
+    cmdline = b"console=tty0 console=ttyGS0 loglevel=6 panic=0 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
     header[64:576] = cmdline.ljust(512, b"\0")
     digest = hashlib.sha1()
     for part in (payload, ramdisk, b""):
