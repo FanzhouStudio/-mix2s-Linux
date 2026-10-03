@@ -1,0 +1,5 @@
+# Only the Polaris diagnostic USB serial gadget used by this Ubuntu recovery.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0525", ATTR{idProduct}=="a4a7", ATTR{serial}=="polaris-diag-v8", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4a7", ATTRS{serial}=="polaris-diag-v8", OWNER="zesong", MODE="0600", ENV{ID_MM_PORT_IGNORE}="1", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0525", ATTR{idProduct}=="a4a7", ATTR{serial}=="polaris-linux728-diag", ENV{ID_MM_DEVICE_IGNORE}="1"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4a7", ATTRS{serial}=="polaris-linux728-diag", OWNER="zesong", MODE="0600", ENV{ID_MM_PORT_IGNORE}="1", ENV{ID_MM_DEVICE_IGNORE}="1"
