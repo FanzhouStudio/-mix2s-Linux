@@ -45,4 +45,6 @@
 
 该镜像已由 `fastboot boot` 临时启动，`/proc/cmdline` 证实 `msm.dpu_use_virtual_planes=0` 生效，但手机仍完全黑屏。DSI 时钟与可亮屏的 6.1 相同：pixel 153297998 Hz、byte 114973498 Hz、byte-intf 57486749 Hz、escape 19200000 Hz。内核仍在 1.39 秒左右报告 SID `0x880`/`0xc88` 对 `0x9d4...` 的 SMMU 翻译故障及 `dsi_err_worker: status=4`；6.39 秒已有 239405 条 SMMU 回调被抑制。WLED 在 7.67 秒的 `wled_ovp_work` 中触发重复 `enable_irq` 警告；PMIC 的 `d808=d810=02` 同时记录 OVP 状态，两者需分别分析。`fb0` 于 7.77 秒注册。虚拟显示平面默认值和时钟数值都不能单独解释故障，后续需检查旧扫描缓冲区在 SMMU 接管前后是否仍被 DPU 读取，以及面板/背光启用顺序。此结果不能外推为 7.2.8 日常可用。
 
+第九版单变量候选：此前能亮屏的 postmarketOS 6.16.7 Polaris DTB 含 `framebuffer@9d400000`、`no-map`、长度 `0x02400000`，7.2.8 第七版 DTB 缺此节点；故障 IOVA 恰落在该 XBL 显示缓冲区。`diagnostics/build-linux728-xbl-reserved-dtb.sh` 只给设备树增加该保留项。反编译对比确认新旧 DTB 仅多此节点，内核 `Image.gz`、initramfs 与第七版相同。RAM-only 镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-reserved-diag.img` 的 SHA-256 为 `252368f844dcd6e1c21e3d2ccb84b850c5cbc6f45d0c18271667d1d3427af77d`。应仅用 `fastboot boot` 试验；观察保留项是否出现在 `/proc/device-tree`，并对比 SMMU 故障数量、DSI、WLED 和屏幕状态。保留物理内存本身不等于在 IOMMU 中建立映射，因此不能预设故障会消失。
+
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。

@@ -54,11 +54,19 @@ def main() -> None:
                         help="Test GPU secure firmware separately from fbdev changes")
     parser.add_argument("--legacy-dpu-planes", action="store_true",
                         help="Use the non-virtual DPU plane default of the working 6.16 branch")
+    parser.add_argument("--reserve-xbl-framebuffer", action="store_true",
+                        help="Use the DTB variant reserving XBL's 36 MiB scanout buffer")
     args = parser.parse_args()
+    if args.legacy_dpu_planes and args.reserve_xbl_framebuffer:
+        parser.error("Test legacy planes and XBL reservation separately")
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
     kernel = (OUT / "Image.gz").read_bytes()
-    dtb = (OUT / "sdm845-xiaomi-polaris.dtb").read_bytes()
+    dtb_name = ("sdm845-xiaomi-polaris-xbl-reserved.dtb"
+                if args.reserve_xbl_framebuffer else "sdm845-xiaomi-polaris.dtb")
+    dtb = (OUT / dtb_name).read_bytes()
+    if args.reserve_xbl_framebuffer and b"framebuffer@9d400000" not in dtb:
+        raise ValueError("Selected DTB has no XBL framebuffer reservation")
     config = (OUT / "kernel.config").read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
                    "USB_CONFIGFS", "USB_CONFIGFS_ACM", "U_SERIAL_CONSOLE",
@@ -129,10 +137,16 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_path = OUT / ("polaris-linux728-legacy-dpu-diag.img"
-                        if args.legacy_dpu_planes else IMAGE.name)
-    manifest_path = OUT / ("legacy-dpu-diag-manifest.json"
-                           if args.legacy_dpu_planes else MANIFEST.name)
+    image_name = ("polaris-linux728-xbl-reserved-diag.img"
+                  if args.reserve_xbl_framebuffer else
+                  "polaris-linux728-legacy-dpu-diag.img"
+                  if args.legacy_dpu_planes else IMAGE.name)
+    manifest_name = ("xbl-reserved-diag-manifest.json"
+                     if args.reserve_xbl_framebuffer else
+                     "legacy-dpu-diag-manifest.json"
+                     if args.legacy_dpu_planes else MANIFEST.name)
+    image_path = OUT / image_name
+    manifest_path = OUT / manifest_name
     image_path.write_bytes(image)
     manifest = {
         "kernel_release": "7.2.8-polaris",
@@ -145,6 +159,7 @@ def main() -> None:
         "partition_flash": False,
         "zap_firmware": args.include_zap_firmware,
         "legacy_dpu_planes": args.legacy_dpu_planes,
+        "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer,
         "cmdline": cmdline.decode(),
         "device_boot_verified": False,
     }

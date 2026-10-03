@@ -1,0 +1,15 @@
+--- a/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
+@@ -100,6 +100,12 @@
+ 			no-map;
+ 		};
+ 
++		/* XBL display scanout, retained by the working 6.16.7 Polaris DTB. */
++		framebuffer@9d400000 {
++			reg = <0 0x9d400000 0 0x02400000>;
++			no-map;
++		};
++
+ 		rmtfs_mem: memory@f6301000 {
+ 			compatible = "qcom,rmtfs-mem";
+ 			reg = <0 0xf6301000 0 0x200000>;
