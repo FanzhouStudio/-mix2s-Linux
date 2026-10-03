@@ -8,7 +8,7 @@
 
 **重要限制：**此内核在 QQ、ChatGPT、Clash Verge 和部分浏览器／高 I/O 场景下可能整机卡死，日志捕获到 RCU CPU 停顿；目前没有可靠修复。麦克风、通话音频、短信、相机、蓝牙配对和长期稳定性未验证。公开 rootfs 不含 QQ、ChatGPT、Clash Verge、1Panel 或个人配置。
 
-刷入前请阅读 [中文安装与回退说明](https://github.com/FanzhouStudio/-mix2s-Linux/blob/v0.1.0-preview.1/release/INSTALL.zh-CN.md)。目前的安装方式占用整个原 `userdata`；保留 Android `boot` **不等于已实现双系统共存**。独立分区共存方案仍需开发和验证。
+刷入前请阅读本 Release 附件 `INSTALL.zh-CN.md` 或 [最新版中文安装与回退说明](https://github.com/FanzhouStudio/-mix2s-Linux/blob/main/release/INSTALL.zh-CN.md)。目前的安装方式占用整个原 `userdata`；保留 Android `boot` **不等于已实现双系统共存**。独立分区共存方案仍需开发和验证。
 
 可选启动方式：已准备好 Ubuntu 根分区后，可用 `fastboot boot` 仅从内存临时启动；确认后再选择 `fastboot flash recovery` 安装到 recovery。两种方式都不会自动建立 Android／Ubuntu 双系统；格式化 `userdata` 前必须自行备份 Android 数据。
 

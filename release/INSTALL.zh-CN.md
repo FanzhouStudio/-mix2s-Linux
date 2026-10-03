@@ -22,7 +22,7 @@
 
 ## 安装选项 A：原 `userdata` 专用于 Ubuntu
 
-这是当前手机上已验证的分区布局。需要一个能运行 `adb shell`、`mkfs.ext4`、`mount`、`tar`、`chroot` 的 ARM64 恢复环境，以及主机上的 Android Platform Tools 和 `zstd`。可以从 [TWRP 官方 polaris 下载页](https://dl.twrp.me/polaris/)取得恢复镜像，先通过 `fastboot boot` 临时启动；本项目不重新分发 TWRP。不同恢复环境的块设备别名可能不同；**先确认 `userdata` 指向正确分区**。
+这是当前手机上已验证的分区布局。需要一个能运行 `adb shell`、`mke2fs`（或 `mkfs.ext4`）、`mount`、`tar`、`chroot` 的 ARM64 恢复环境，以及主机上的 Android Platform Tools 和 `zstd`。可以从 [TWRP 官方 polaris 下载页](https://dl.twrp.me/polaris/)取得恢复镜像，先通过 `fastboot boot` 临时启动；本项目不重新分发 TWRP。不同恢复环境的块设备别名可能不同；**先确认 `userdata` 指向正确分区**。TWRP 的旧内核可只读查看本机现有 Ubuntu ext4，但因较新的 ext4 特性无法将其挂为可写；以下格式化命令仅用于全新安装，不适用于修复现有分区。
 
 1. 在主机校验下载文件：
 
@@ -39,7 +39,7 @@
 
    ```sh
    adb shell 'readlink -f /dev/block/by-name/userdata'
-   adb shell 'umount /data 2>/dev/null || true; mkfs.ext4 -F -L POLARIS_UBUNTU /dev/block/by-name/userdata'
+   adb shell 'umount /data 2>/dev/null || true; mke2fs -t ext4 -F -L POLARIS_UBUNTU /dev/block/by-name/userdata'
    adb shell 'mkdir -p /mnt/ubuntu && mount -t ext4 /dev/block/by-name/userdata /mnt/ubuntu'
    ```
 
