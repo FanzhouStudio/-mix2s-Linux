@@ -48,6 +48,7 @@ def main() -> None:
     config = (OUT / "kernel.config").read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
                    "USB_CONFIGFS", "USB_CONFIGFS_ACM", "U_SERIAL_CONSOLE",
+                   "REGULATOR_QCOM_REFGEN", "QCOM_GPI_DMA",
                    "BACKLIGHT_QCOM_WLED",
                    "REGULATOR_QCOM_LABIBB"):
         if f"CONFIG_{option}=y\n" not in config:

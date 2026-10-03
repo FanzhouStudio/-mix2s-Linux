@@ -48,6 +48,8 @@ cp "$repo_dir/artifacts/kernel.config" "$out_dir/.config"
   --enable USB_CONFIGFS \
   --disable USB_G_SERIAL \
   --enable U_SERIAL_CONSOLE \
+  --enable REGULATOR_QCOM_REFGEN \
+  --enable QCOM_GPI_DMA \
   --enable BACKLIGHT_QCOM_WLED \
   --enable REGULATOR_QCOM_LABIBB
 
@@ -55,7 +57,7 @@ make -C "$src_dir" O="$out_dir" ARCH=arm64 LLVM=1 olddefconfig
 for symbol in SCSI_UFS_QCOM PHY_QCOM_QMP_UFS PHY_QCOM_QMP_USB \
   PHY_QCOM_QUSB2 DRM_MSM USB_CONFIGFS USB_CONFIGFS_ACM \
   U_SERIAL_CONSOLE \
-  BACKLIGHT_QCOM_WLED REGULATOR_QCOM_LABIBB; do
+  REGULATOR_QCOM_REFGEN QCOM_GPI_DMA BACKLIGHT_QCOM_WLED REGULATOR_QCOM_LABIBB; do
   grep -Fqx "CONFIG_${symbol}=y" "$out_dir/.config"
 done
 grep -Fqx '# CONFIG_USB_G_SERIAL is not set' "$out_dir/.config"

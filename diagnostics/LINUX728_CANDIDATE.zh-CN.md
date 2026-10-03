@@ -13,6 +13,7 @@
 - JDI 面板：保留先前的 NT35596S 初始化补丁，只为 Polaris 对应的面板启用 `prepare_prev_first`。这个顺序来自已运行的 6.16.7 面板修补记录；其他 NT36672A 面板不受影响。
 - 固件路径：Polaris 设备树继续使用已运行的 6.1 系统中的 `qcom/sdm845/polaris/` 和 `qca/polaris/` 路径，避免当前 rootfs 找不到固件。没有回退 7.2.8 的其他设备树供电定义。
 - UFS：将 `SCSI_UFS_QCOM`、`PHY_QCOM_QMP` 和 `PHY_QCOM_QMP_UFS` 编入内核，以便早期发现 userdata。
+- 第四版根据串口中的延迟探测记录，将 DSI 所需的 `REGULATOR_QCOM_REFGEN`、触摸屏 I²C 所需的 `QCOM_GPI_DMA` 从模块改为内建。
 - 首次诊断所需的 `USB_CONFIGFS`、USB PHY、WLED 背光、LAB/IBB 面板供电也编入内核。第三版关闭内建 `g_serial`，启用 `U_SERIAL_CONSOLE`，由 init 建立单一 ConfigFS ACM gadget，并把 `ttyGS0` 用作内核日志控制台。
 - 版本后缀为 `7.2.8-polaris`，便于与系统现有的 `6.1-sdm845` 区分。
 
@@ -20,14 +21,14 @@
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `Image.gz` | `73413149af951e973ed200e1945a5c88a78ee3ff07e99340f816ed844baf5b57` |
+| `Image.gz` | `9fc90d3a52bcc65a66a9b2eb09e6dceb0e9f725f18cb463c0969b073c0986465` |
 | `sdm845-xiaomi-polaris.dtb` | `ceebbaeab7d770d85b8c78c6095e2b4486c05f4cec8c7baedc3f86ffc5c60801` |
-| `kernel.config` | `5b40ccc38de58e94d99e0b035836dd15a3c3e5151a6e96cb6321b2a181e74f56` |
+| `kernel.config` | `bc58e7b1301e0d110a1179c4351e174e8bf11f198fc23b87cabbc2ee57a49042` |
 
 旧的 `polaris-linux728-ramboot.img` 复用了 6.1 的持久系统 initramfs，已不作为首次测试镜像。7.2.8 不能加载其中的 6.1 模块。
 
-本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第三版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,715,200 字节，SHA-256 `8f05ca618f4aaa7a742c7b52abe972aa0b2efe3d47c83be8ab0cbeebdcbe9c92`。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
+本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第四版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,723,392 字节，SHA-256 `9dd6a40bf0f404ca10cb6fd3fa08cdbdfc8427c32588e716873ae7775bb4c79f`，尚待手机验证。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
 
-第三版于 2026-10-04 使用 `fastboot boot` 临时启动。手机纯黑屏，但 Ubuntu-Max 枚举出 `0525:a4a7`、产品 `Linux 7.2.8 RAM-only`、序列号 `polaris-linux728-diag`、`ttyACM0`，确认已运行到诊断 init 中的 ConfigFS ACM 绑定。主机的旧 udev 规则只匹配 `polaris-diag-v8`，所以串口节点仍为 `root:dialout`、模式 `0660`，当前会话尚不能读取内核日志。需先授权当前串口，才能根据显示子系统的实际错误做补丁；仅凭黑屏不能确定面板驱动是唯一原因。
+第三版于 2026-10-04 使用 `fastboot boot` 临时启动。手机纯黑屏，但 Ubuntu-Max 枚举出 `0525:a4a7`、产品 `Linux 7.2.8 RAM-only`、序列号 `polaris-linux728-diag`、`ttyACM0`，确认已运行到诊断 init 中的 ConfigFS ACM 绑定。授权串口后，`dmesg` 明确报告 `ae94000.dsi` 在等待 `ff1000.regulator`；`CONFIG_REGULATOR_QCOM_REFGEN=m`，最小诊断系统没有相应模块。另有 `a98000.i2c` 等待 DMA，而 `CONFIG_QCOM_GPI_DMA=m`；Polaris 触摸屏位于这个 I²C 控制器。第四版把这两个依赖编入内核，再观察 DRM 注册和面板初始化结果。
 
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。
