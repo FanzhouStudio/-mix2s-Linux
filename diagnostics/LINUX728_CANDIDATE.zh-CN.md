@@ -43,6 +43,6 @@
 
 下一项单变量实验：6.16.7 的 `dpu_use_virtual_planes` 默认关闭，7.2.8 默认开启；两版 DPU 初始化会因此选用不同的平面分配路径。已生成 `artifacts/linux728-polaris-candidate/polaris-linux728-legacy-dpu-diag.img`，SHA-256 `0f84f2f3466f1cf497d1fd6fe1bb433be59a57c6ce9feffcdfb88b425080bcd4`。它与第七版使用同一内核、DTB 和 initramfs，只在启动参数中加入 `msm.dpu_use_virtual_planes=0`，仍不挂载或刷写手机分区。应通过 `fastboot boot` 测试，并用串口核对 `/proc/cmdline`、DSI/FIFO、SMMU 与背光状态。下面记录实机结果；即使亮屏，也不能据此认定 RCU 卡死或日常稳定性已解决。
 
-该镜像已由 `fastboot boot` 临时启动，`/proc/cmdline` 证实 `msm.dpu_use_virtual_planes=0` 生效，但手机仍完全黑屏。DSI 时钟与可亮屏的 6.1 相同：pixel 153297998 Hz、byte 114973498 Hz、byte-intf 57486749 Hz、escape 19200000 Hz。内核仍在 1.39 秒左右报告 SID `0x880`/`0xc88` 对 `0x9d4...` 的 SMMU 翻译故障及 `dsi_err_worker: status=4`；6.39 秒已有 239405 条 SMMU 回调被抑制。WLED 在 7.67 秒报告 OVP，`d808=d810=02`；`fb0` 于 7.77 秒注册。虚拟显示平面默认值和时钟数值都不能单独解释故障，后续需检查旧扫描缓冲区在 SMMU 接管前后是否仍被 DPU 读取，以及面板/背光启用顺序。此结果不能外推为 7.2.8 日常可用。
+该镜像已由 `fastboot boot` 临时启动，`/proc/cmdline` 证实 `msm.dpu_use_virtual_planes=0` 生效，但手机仍完全黑屏。DSI 时钟与可亮屏的 6.1 相同：pixel 153297998 Hz、byte 114973498 Hz、byte-intf 57486749 Hz、escape 19200000 Hz。内核仍在 1.39 秒左右报告 SID `0x880`/`0xc88` 对 `0x9d4...` 的 SMMU 翻译故障及 `dsi_err_worker: status=4`；6.39 秒已有 239405 条 SMMU 回调被抑制。WLED 在 7.67 秒的 `wled_ovp_work` 中触发重复 `enable_irq` 警告；PMIC 的 `d808=d810=02` 同时记录 OVP 状态，两者需分别分析。`fb0` 于 7.77 秒注册。虚拟显示平面默认值和时钟数值都不能单独解释故障，后续需检查旧扫描缓冲区在 SMMU 接管前后是否仍被 DPU 读取，以及面板/背光启用顺序。此结果不能外推为 7.2.8 日常可用。
 
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。
