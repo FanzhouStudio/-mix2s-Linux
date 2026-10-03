@@ -1,0 +1,13 @@
+[Unit]
+Description=QQ 3.2.32 ARM64 read-only application image
+ConditionPathExists=/opt/polaris-images/QQ_3.2.32_arm64.squashfs
+RequiresMountsFor=/opt/polaris-images/QQ_3.2.32_arm64.squashfs
+
+[Mount]
+What=/opt/polaris-images/QQ_3.2.32_arm64.squashfs
+Where=/opt/QQ
+Type=squashfs
+Options=loop,ro
+
+[Install]
+WantedBy=multi-user.target
