@@ -27,7 +27,7 @@
 
 旧的 `polaris-linux728-ramboot.img` 复用了 6.1 的持久系统 initramfs，已不作为首次测试镜像。7.2.8 不能加载其中的 6.1 模块。
 
-本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第七版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,752,064 字节，SHA-256 `6f5b0a1fabd7f9503f3cbd479aca09bcc3e670f3f9ae437d91a9c69127fec11b`，尚待手机验证。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
+本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第七版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,752,064 字节，SHA-256 `6f5b0a1fabd7f9503f3cbd479aca09bcc3e670f3f9ae437d91a9c69127fec11b`；实机测试结果见下文。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
 
 第三版于 2026-10-04 使用 `fastboot boot` 临时启动。手机纯黑屏，但 Ubuntu-Max 枚举出 `0525:a4a7`、产品 `Linux 7.2.8 RAM-only`、序列号 `polaris-linux728-diag`、`ttyACM0`，确认已运行到诊断 init 中的 ConfigFS ACM 绑定。授权串口后，`dmesg` 明确报告 `ae94000.dsi` 在等待 `ff1000.regulator`；`CONFIG_REGULATOR_QCOM_REFGEN=m`，最小诊断系统没有相应模块。另有 `a98000.i2c` 等待 DMA，而 `CONFIG_QCOM_GPI_DMA=m`；Polaris 触摸屏位于这个 I²C 控制器。第四版把这两个依赖编入内核，再观察 DRM 注册和面板初始化结果。
 
@@ -40,5 +40,7 @@
 第七版于 2026-10-04 临时启动后，用户看到纯黑屏。重新把 USB 接入 Ubuntu-Max 后，`0525:a4a7` ACM 正常枚举，串口确认内核 `7.2.8-polaris`、`card0-DSI-1` 和 `fb0` 存在。`sys_imageblit` / `sys_fillrect` 的虚拟地址警告消失，说明 fbdev 标记修正生效；但 GPU 仍缺 ZAP 固件，SID `0x880`/`0xc88` 的 SMMU 故障及 DSI FIFO 错误 `status=4` 仍出现。背光类设备报告 2048/4095，PMI8998 WLED 寄存器 `d808=02`、`d810=02` 显示过压故障；将亮度设为 0 后两寄存器归零、模块关闭，低亮度重新开启又报告故障。
 
 回到可亮屏的 6.1 recovery 后，用户确认桌面和背光正常。亮度同为 2048/4095，WLED 配置寄存器 `d846=80`、`d84d=02`、`d946=f0`、四个灯串 `d950/d960/d970/d980=80` 与 7.2 相同，但故障位 `d808=d810=00`。LAB/IBB 均显示已启用且为 4.6 V；6.1 内核日志没有 7.2 的显示 SMMU 故障或 DSI FIFO 错误。XBL 显示缓冲区 `0x9d400000` 的另行保留实验未进入当前可用的 recovery，不能把该保留视为已验证修复。下一轮应针对 DPU/SMMU 接管和 DSI 初始化的版本差异做单项实验；不要仅提高 WLED 过压阈值。
+
+下一项单变量实验：6.16.7 的 `dpu_use_virtual_planes` 默认关闭，7.2.8 默认开启；两版 DPU 初始化会因此选用不同的平面分配路径。已生成 `artifacts/linux728-polaris-candidate/polaris-linux728-legacy-dpu-diag.img`，SHA-256 `0f84f2f3466f1cf497d1fd6fe1bb433be59a57c6ce9feffcdfb88b425080bcd4`。它与第七版使用同一内核、DTB 和 initramfs，只在启动参数中加入 `msm.dpu_use_virtual_planes=0`，仍不挂载或刷写手机分区。应通过 `fastboot boot` 测试，并用串口核对 `/proc/cmdline`、DSI/FIFO、SMMU 与背光状态。此假设尚未在设备上验证；即使亮屏，也不能据此认定 RCU 卡死或日常稳定性已解决。
 
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。

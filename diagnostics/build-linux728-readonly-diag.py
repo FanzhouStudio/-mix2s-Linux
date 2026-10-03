@@ -52,6 +52,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--include-zap-firmware", action="store_true",
                         help="Test GPU secure firmware separately from fbdev changes")
+    parser.add_argument("--legacy-dpu-planes", action="store_true",
+                        help="Use the non-virtual DPU plane default of the working 6.16 branch")
     args = parser.parse_args()
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
@@ -113,6 +115,10 @@ def main() -> None:
     fields[0], fields[2] = len(payload), len(ramdisk)
     struct.pack_into("<10I", header, 8, *fields)
     cmdline = b"console=tty0 console=ttyGS0 loglevel=6 panic=0 fw_devlink=off deferred_probe_timeout=60 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
+    if args.legacy_dpu_planes:
+        cmdline += b" msm.dpu_use_virtual_planes=0"
+    if len(cmdline) > 512:
+        raise ValueError("Diagnostic kernel command line exceeds boot image field")
     header[64:576] = cmdline.ljust(512, b"\0")
     digest = hashlib.sha1()
     for part in (payload, ramdisk, b""):
@@ -123,7 +129,11 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    IMAGE.write_bytes(image)
+    image_path = OUT / ("polaris-linux728-legacy-dpu-diag.img"
+                        if args.legacy_dpu_planes else IMAGE.name)
+    manifest_path = OUT / ("legacy-dpu-diag-manifest.json"
+                           if args.legacy_dpu_planes else MANIFEST.name)
+    image_path.write_bytes(image)
     manifest = {
         "kernel_release": "7.2.8-polaris",
         "kernel_sha256": hashlib.sha256(kernel).hexdigest(),
@@ -134,10 +144,12 @@ def main() -> None:
         "storage_mounts": False,
         "partition_flash": False,
         "zap_firmware": args.include_zap_firmware,
+        "legacy_dpu_planes": args.legacy_dpu_planes,
+        "cmdline": cmdline.decode(),
         "device_boot_verified": False,
     }
-    MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"{IMAGE}: {len(image)} bytes SHA-256 {manifest['image_sha256']}")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"{image_path}: {len(image)} bytes SHA-256 {manifest['image_sha256']}")
 
 
 if __name__ == "__main__":
