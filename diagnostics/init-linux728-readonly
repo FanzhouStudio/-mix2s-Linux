@@ -1,0 +1,75 @@
+#!/bin/sh
+# RAM-only first boot. Do not mount Ubuntu or replay its filesystem journal.
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+/bin/busybox mount -t proc proc /proc
+/bin/busybox mount -t sysfs sysfs /sys
+/bin/busybox mount -t devtmpfs devtmpfs /dev
+/bin/busybox mkdir -p /dev/pts /run /tmp /sys/kernel/config
+/bin/busybox mount -t devpts devpts /dev/pts
+/bin/busybox mount -t tmpfs tmpfs /run
+/bin/busybox mount -t tmpfs tmpfs /tmp
+/bin/busybox --install -s /bin
+exec >>/run/init.log 2>&1
+echo 'POLARIS 7.2.8: RAM-only init started'
+uname -a
+cat /proc/cmdline
+echo 0 >/proc/sys/kernel/panic
+echo WAITING >/run/usb-status
+
+protect_blocks() {
+    for b in /sys/class/block/*; do
+        [ -e "$b" ] || continue
+        case "${b##*/}" in
+            sd*|mmcblk*|nvme*) blockdev --setro "/dev/${b##*/}" || true ;;
+        esac
+    done
+}
+
+setup_usb() {
+    # CONFIG_USB_G_SERIAL is built in and binds the UDC before PID 1 starts.
+    # Reusing it avoids a second ConfigFS gadget competing for the same UDC.
+    n=0
+    while [ "$n" -lt 60 ]; do
+        if [ -c /dev/ttyGS0 ]; then
+            echo READY >/run/usb-status
+            echo 'Using built-in g_serial ACM'
+            return 0
+        fi
+        n=$((n+1)); sleep 1
+    done
+    echo FAILED >/run/usb-status
+    return 1
+}
+
+(
+    if setup_usb; then
+        while [ ! -c /dev/ttyGS0 ]; do sleep 1; done
+        while :; do
+            setsid -c /bin/sh -i </dev/ttyGS0 >/dev/ttyGS0 2>&1
+            sleep 1
+        done
+    fi
+) &
+
+(
+    while :; do
+        {
+            printf '\033[2J\033[H'
+            echo 'POLARIS / LINUX 7.2.8'
+            echo 'INIT: RAM-ONLY DIAGNOSTICS'
+            echo 'STORAGE: NOT MOUNTED, BLOCKS READ-ONLY'
+            echo "ACM: $(cat /run/usb-status)"
+            echo "UPTIME: $(cut -d ' ' -f 1 /proc/uptime) seconds"
+            echo 'Block devices:'
+            ls /sys/class/block | head -12
+            echo 'Recent init messages:'
+            tail -8 /run/init.log
+        } >/dev/tty1 2>/dev/null
+        sleep 5
+    done
+) &
+
+while :; do
+    protect_blocks
+    sleep 2
+done

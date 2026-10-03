@@ -42,10 +42,17 @@ cp "$repo_dir/artifacts/kernel.config" "$out_dir/.config"
   --disable LOCALVERSION_AUTO \
   --enable SCSI_UFS_QCOM \
   --enable PHY_QCOM_QMP \
-  --enable PHY_QCOM_QMP_UFS
+  --enable PHY_QCOM_QMP_UFS \
+  --enable PHY_QCOM_QMP_USB \
+  --enable PHY_QCOM_QUSB2 \
+  --enable USB_CONFIGFS \
+  --enable BACKLIGHT_QCOM_WLED \
+  --enable REGULATOR_QCOM_LABIBB
 
 make -C "$src_dir" O="$out_dir" ARCH=arm64 LLVM=1 olddefconfig
-for symbol in SCSI_UFS_QCOM PHY_QCOM_QMP_UFS DRM_MSM USB_CONFIGFS_ACM; do
+for symbol in SCSI_UFS_QCOM PHY_QCOM_QMP_UFS PHY_QCOM_QMP_USB \
+  PHY_QCOM_QUSB2 DRM_MSM USB_CONFIGFS USB_CONFIGFS_ACM \
+  BACKLIGHT_QCOM_WLED REGULATOR_QCOM_LABIBB; do
   grep -Fqx "CONFIG_${symbol}=y" "$out_dir/.config"
 done
 make -C "$src_dir" O="$out_dir" ARCH=arm64 LLVM=1 -j4 \

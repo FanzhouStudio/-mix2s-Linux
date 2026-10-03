@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Build a RAM-only, no-storage-mount Android boot v0 image for Polaris."""
+
+from __future__ import annotations
+
+import gzip
+import hashlib
+import json
+import stat
+import struct
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+ART = ROOT / "artifacts"
+OUT = ART / "linux728-polaris-candidate"
+SOURCE = ART / "polaris-ubuntu-26.04.1-audio-recovery-v1.img"
+SOURCE_HASH = "28a3b429917142bceb985139640e72be9ee1e76926852c947f8ec3179b33ddc3"
+BUSYBOX = ART / "pmos6167/original-busybox"
+BUSYBOX_HASH = "c2f279d1d5640a0f327890d41cad594c0f059f3fed3f96dd72fdcc4f5e18ec02"
+IMAGE = OUT / "polaris-linux728-readonly-diag.img"
+MANIFEST = OUT / "readonly-diag-manifest.json"
+
+
+def read_verified(path: Path, digest: str) -> bytes:
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError(f"SHA-256 mismatch: {path}")
+    return data
+
+
+def append_newc(out: bytearray, name: str, mode: int, data: bytes, inode: int,
+                major: int = 0, minor: int = 0) -> None:
+    encoded = name.encode() + b"\0"
+    fields = (inode, mode, 0, 0, 2 if stat.S_ISDIR(mode) else 1, 0,
+              len(data), 0, 0, major, minor, len(encoded), 0)
+    out += b"070701" + b"".join(f"{value:08x}".encode() for value in fields)
+    out += encoded
+    out += b"\0" * (-len(out) % 4)
+    out += data
+    out += b"\0" * (-len(out) % 4)
+
+
+def main() -> None:
+    boot = read_verified(SOURCE, SOURCE_HASH)
+    busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
+    kernel = (OUT / "Image.gz").read_bytes()
+    dtb = (OUT / "sdm845-xiaomi-polaris.dtb").read_bytes()
+    config = (OUT / "kernel.config").read_text()
+    for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
+                   "USB_CONFIGFS", "USB_CONFIGFS_ACM", "BACKLIGHT_QCOM_WLED",
+                   "REGULATOR_QCOM_LABIBB"):
+        if f"CONFIG_{option}=y\n" not in config:
+            raise ValueError(f"Required built-in driver missing: {option}")
+    if gzip.decompress(kernel)[56:60] != b"ARM\x64" or dtb[:4] != b"\xd0\x0d\xfe\xed":
+        raise ValueError("Unexpected kernel or DTB format")
+    if boot[:8] != b"ANDROID!":
+        raise ValueError("Unexpected reference boot image")
+    fields = list(struct.unpack_from("<10I", boot, 8))
+    _, _, _, _, second_size, _, _, page, version, _ = fields
+    if (page, version, second_size) != (4096, 0, 0):
+        raise ValueError("Unexpected reference boot layout")
+
+    entries: dict[str, tuple[int, bytes, int, int]] = {}
+
+    def add(name: str, mode: int, data: bytes = b"", major: int = 0,
+            minor: int = 0) -> None:
+        parent = Path(name).parent
+        while str(parent) != ".":
+            entries.setdefault(parent.as_posix(), (stat.S_IFDIR | 0o755, b"", 0, 0))
+            parent = parent.parent
+        entries[name] = mode, data, major, minor
+
+    for directory in ("bin", "sbin", "usr/bin", "usr/sbin", "dev", "proc", "sys", "run", "tmp"):
+        add(directory, stat.S_IFDIR | 0o755)
+    add("bin/busybox", stat.S_IFREG | 0o755, busybox)
+    add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
+    add("init", stat.S_IFREG | 0o755,
+        (ROOT / "diagnostics/init-linux728-readonly").read_bytes())
+    for name, major, minor in (("console", 5, 1), ("null", 1, 3),
+                               ("tty", 5, 0), ("tty1", 4, 1)):
+        add("dev/" + name, stat.S_IFCHR | 0o600, b"", major, minor)
+    archive = bytearray()
+    for inode, (name, (mode, data, major, minor)) in enumerate(sorted(entries.items()), 1):
+        append_newc(archive, name, mode, data, inode, major, minor)
+    append_newc(archive, "TRAILER!!!", 0, b"", len(entries) + 1)
+    archive += b"\0" * (-len(archive) % 512)
+    ramdisk = gzip.compress(archive, compresslevel=9, mtime=0)
+
+    payload = kernel + dtb
+    header = bytearray(boot[:page])
+    fields[0], fields[2] = len(payload), len(ramdisk)
+    struct.pack_into("<10I", header, 8, *fields)
+    cmdline = b"console=tty0 loglevel=5 panic=0 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
+    header[64:576] = cmdline.ljust(512, b"\0")
+    digest = hashlib.sha1()
+    for part in (payload, ramdisk, b""):
+        digest.update(part)
+        digest.update(struct.pack("<I", len(part)))
+    header[576:608] = digest.digest().ljust(32, b"\0")
+    image = bytes(header) + payload + b"\0" * (-len(payload) % page)
+    image += ramdisk + b"\0" * (-len(ramdisk) % page)
+    if len(image) > 64 * 1024 * 1024:
+        raise ValueError("Diagnostic image exceeds recovery size")
+    IMAGE.write_bytes(image)
+    manifest = {
+        "kernel_release": "7.2.8-polaris",
+        "kernel_sha256": hashlib.sha256(kernel).hexdigest(),
+        "dtb_sha256": hashlib.sha256(dtb).hexdigest(),
+        "ramdisk_sha256": hashlib.sha256(ramdisk).hexdigest(),
+        "image_sha256": hashlib.sha256(image).hexdigest(),
+        "image_bytes": len(image),
+        "storage_mounts": False,
+        "partition_flash": False,
+        "device_boot_verified": False,
+    }
+    MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"{IMAGE}: {len(image)} bytes SHA-256 {manifest['image_sha256']}")
+
+
+if __name__ == "__main__":
+    main()
