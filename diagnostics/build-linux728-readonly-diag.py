@@ -17,6 +17,11 @@ SOURCE = ART / "polaris-ubuntu-26.04.1-audio-recovery-v1.img"
 SOURCE_HASH = "28a3b429917142bceb985139640e72be9ee1e76926852c947f8ec3179b33ddc3"
 BUSYBOX = ART / "pmos6167/original-busybox"
 BUSYBOX_HASH = "c2f279d1d5640a0f327890d41cad594c0f059f3fed3f96dd72fdcc4f5e18ec02"
+FIRMWARE = ROOT / "rootfs-ubuntu-26.04.1/lib/firmware/qcom"
+FIRMWARE_HASHES = {
+    "a630_gmu.bin": "da8d9b1b1f5c1a0b311f32567093b4828f3c80031dd8435f91ac13c664e173a6",
+    "a630_sqe.fw": "a4b9e92bbeaff044d7713610d2ba8526d733756b977a9625958fd264dfb8eaa3",
+}
 IMAGE = OUT / "polaris-linux728-readonly-diag.img"
 MANIFEST = OUT / "readonly-diag-manifest.json"
 
@@ -80,6 +85,9 @@ def main() -> None:
     add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
     add("init", stat.S_IFREG | 0o755,
         (ROOT / "diagnostics/init-linux728-readonly").read_bytes())
+    for name, digest in FIRMWARE_HASHES.items():
+        add("lib/firmware/qcom/" + name, stat.S_IFREG | 0o644,
+            read_verified(FIRMWARE / name, digest))
     for name, major, minor in (("console", 5, 1), ("null", 1, 3),
                                ("tty", 5, 0), ("tty1", 4, 1)):
         add("dev/" + name, stat.S_IFCHR | 0o600, b"", major, minor)
@@ -94,7 +102,7 @@ def main() -> None:
     header = bytearray(boot[:page])
     fields[0], fields[2] = len(payload), len(ramdisk)
     struct.pack_into("<10I", header, 8, *fields)
-    cmdline = b"console=tty0 console=ttyGS0 loglevel=6 panic=0 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
+    cmdline = b"console=tty0 console=ttyGS0 loglevel=6 panic=0 fw_devlink=off deferred_probe_timeout=60 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
     header[64:576] = cmdline.ljust(512, b"\0")
     digest = hashlib.sha1()
     for part in (payload, ramdisk, b""):

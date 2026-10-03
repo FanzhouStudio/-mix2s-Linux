@@ -27,8 +27,10 @@
 
 旧的 `polaris-linux728-ramboot.img` 复用了 6.1 的持久系统 initramfs，已不作为首次测试镜像。7.2.8 不能加载其中的 6.1 模块。
 
-本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第四版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,723,392 字节，SHA-256 `9dd6a40bf0f404ca10cb6fd3fa08cdbdfc8427c32588e716873ae7775bb4c79f`，尚待手机验证。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
+本轮使用 `python3 diagnostics/build-linux728-readonly-diag.py` 制作 RAM-only 镜像，不挂载 userdata，发现的存储块设备设为只读。第五版镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-readonly-diag.img` 为 17,752,064 字节，SHA-256 `1977081cbdd4c27c6dd4dceff560d1fe3d1f15e640638176bfb54a683ad6e4c5`，尚待手机验证。首次镜像通过 `fastboot boot` 启动后，Ubuntu-Max 曾读到 USB ACM 制造商 `Linux 7.2.8-polaris with dwc3-gadget`，证明内核至少启动到 gadget 枚举。手机灰屏后黑屏；尚未观察到诊断 init 的串口输出。第二版修正了 init 与内建 `g_serial` 抢 UDC 的问题，但手机仍黑屏；Ubuntu-Max 只记录到两次未完成的 USB 连接，VMware 报设备无法识别。
 
 第三版于 2026-10-04 使用 `fastboot boot` 临时启动。手机纯黑屏，但 Ubuntu-Max 枚举出 `0525:a4a7`、产品 `Linux 7.2.8 RAM-only`、序列号 `polaris-linux728-diag`、`ttyACM0`，确认已运行到诊断 init 中的 ConfigFS ACM 绑定。授权串口后，`dmesg` 明确报告 `ae94000.dsi` 在等待 `ff1000.regulator`；`CONFIG_REGULATOR_QCOM_REFGEN=m`，最小诊断系统没有相应模块。另有 `a98000.i2c` 等待 DMA，而 `CONFIG_QCOM_GPI_DMA=m`；Polaris 触摸屏位于这个 I²C 控制器。第四版把这两个依赖编入内核，再观察 DRM 注册和面板初始化结果。
+
+第四版启动后，REFGEN 和 GPI DMA 的延迟探测消失，Synaptics S3330 注册成功。`msm-mdss` 在约 11 秒因依赖探测超时 `-110` 而未自动绑定；系统运行后手动通过 sysfs 绑定 `msm-mdss` 成功，DRM 注册了 `card0-DSI-1`、1080×2160 的 `msmdrmfb`。绑定期间发生大量 SID `0x880`/`0xc88` 的 ARM SMMU 翻译故障和 WLED OVP 中断警告；当时用户看到纯黑屏且没有背光。仅解除 `fb0/blank` 并不能证明显示输出正常。第五版只调整诊断镜像的启动参数为 `fw_devlink=off deferred_probe_timeout=60`，并从现有 Ubuntu rootfs 纳入已校验的 `a630_gmu.bin`、`a630_sqe.fw`，以排除缺失 GPU 固件并测试启动顺序；尚未刷入或验证。持续的 SMMU 故障也需要单独分析，不能把 DRM 注册等同于显示可用。
 
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。
