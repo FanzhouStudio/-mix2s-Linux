@@ -1,0 +1,12 @@
+#!/bin/sh
+# NetworkManager dispatcher: expose the panel only while this Wi-Fi LAN is up.
+[ "$1" = wlan0 ] || exit 0
+case "$2" in
+    up|dhcp4-change)
+        /usr/bin/systemctl restart 1panel-core.service
+        ;;
+    down)
+        /usr/bin/systemctl stop 1panel-core.service
+        ;;
+esac
+exit 0
