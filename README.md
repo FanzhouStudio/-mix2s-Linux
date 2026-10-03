@@ -4,6 +4,8 @@
 
 Public preview package: [v0.1.0-preview.1](https://github.com/FanzhouStudio/-mix2s-Linux/releases/tag/v0.1.0-preview.1). Read the [中文安装说明](release/INSTALL.zh-CN.md) and [Release notes](release/RELEASE_NOTES.zh-CN.md) before flashing. The current image uses `recovery` plus the entire original `userdata`; Android dual boot is not implemented. Frequent whole-device RCU stalls remain unresolved, so the package is a preview rather than a stable daily-use release.
 
+The host-only Linux 7.2.8 Polaris candidate is documented in [diagnostics/LINUX728_CANDIDATE.zh-CN.md](diagnostics/LINUX728_CANDIDATE.zh-CN.md). It is compiled but has not been booted on the phone; the installed recovery still uses 6.1-sdm845.
+
 ## Current installation (updated 2026-10-01)
 
 - The phone boots Ubuntu 26.04.1 arm64 from the **recovery** partition (Vol Up + Power). The current audio-enabled recovery image is `artifacts/polaris-ubuntu-26.04.1-audio-recovery-v1.img`, SHA-256 `28a3b429917142bceb985139640e72be9ee1e76926852c947f8ec3179b33ddc3`. Fastboot reported successful writing; the subsequent recovery boot, GNOME/touch operation, and audible speaker playback were verified. The previous known-booting image is retained as `artifacts/polaris-ubuntu-26.04.1-recovery.img`, SHA-256 `54740351bbd9eb5d6052ef4f61d46a78ba49042fd851364fd393d59bb2159c22`.

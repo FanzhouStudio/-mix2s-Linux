@@ -1,0 +1,23 @@
+--- a/drivers/gpu/drm/panel/panel-novatek-nt36672a.c
++++ b/drivers/gpu/drm/panel/panel-novatek-nt36672a.c
+@@ -46,5 +46,6 @@ struct nt36672a_panel_desc {
+ 	const struct drm_display_mode *display_mode;
+ 	const char *panel_name;
++	bool prepare_prev_first;
+ 
+ 	unsigned int width_mm;
+ 	unsigned int height_mm;
+@@ -743,4 +744,5 @@ static const struct drm_display_mode jdi_nt35596s_video_panel_mode = {
+ 
+ static const struct nt36672a_panel_desc jdi_nt35596s_video_panel_desc = {
+ 	.display_mode = &jdi_nt35596s_video_panel_mode,
++	.prepare_prev_first = true,
+ 
+ 	.width_mm = 68,
+@@ -807,5 +809,6 @@ static int nt36672a_panel_probe(struct mipi_dsi_device *dsi)
+ 	dsi->lanes = desc->lanes;
+ 	pinfo->desc = desc;
+ 	pinfo->link = dsi;
++	pinfo->base.prepare_prev_first = desc->prepare_prev_first;
+ 
+ 	mipi_dsi_set_drvdata(dsi, pinfo);
