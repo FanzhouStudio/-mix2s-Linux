@@ -47,4 +47,6 @@
 
 第九版单变量候选：此前能亮屏的 postmarketOS 6.16.7 Polaris DTB 含 `framebuffer@9d400000`、`no-map`、长度 `0x02400000`，7.2.8 第七版 DTB 缺此节点；故障 IOVA 恰落在该 XBL 显示缓冲区。`diagnostics/build-linux728-xbl-reserved-dtb.sh` 只给设备树增加该保留项。反编译对比确认新旧 DTB 仅多此节点，内核 `Image.gz`、initramfs 与第七版相同。RAM-only 镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-reserved-diag.img` 的 SHA-256 为 `252368f844dcd6e1c21e3d2ccb84b850c5cbc6f45d0c18271667d1d3427af77d`。应仅用 `fastboot boot` 试验；观察保留项是否出现在 `/proc/device-tree`，并对比 SMMU 故障数量、DSI、WLED 和屏幕状态。保留物理内存本身不等于在 IOMMU 中建立映射，因此不能预设故障会消失。
 
+第九版已通过 `fastboot boot` 临时启动，USB ACM 可用，但用户确认屏幕仍纯黑。运行时设备树和内核日志均确认 `0x9d400000..0x9f7fffff` 的 36 MiB `no-map` 保留区生效。显示控制器仍于约 1.36 秒产生 SID `0x880`/`0xc88`、`fsr=0x402`、IOVA `0x9d4...` 的 SMMU 翻译故障；1.386 秒有 `dsi_err_worker: status=4`，6.365 秒仍密集报错，7.65 秒进入 `wled_ovp_work`，7.749 秒才注册 `fb0`。仅保留物理区不足以解决显示故障。下一步应对照可亮屏内核，追查 DRM 接管旧扫描缓冲区与显示 IOMMU domain 绑定的先后顺序；旧缓冲区继续被读取只是待验证假设，不能视为既定根因。保留当前可用的 6.1 recovery，不刷写第九版。
+
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。
