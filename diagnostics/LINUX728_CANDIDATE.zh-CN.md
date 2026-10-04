@@ -57,4 +57,8 @@
 
 用户已重启回原 Linux 桌面，USB ACM 重新出现，串口 `uname -r` 再次确认为 `6.1-sdm845`。第十一版只针对诊断可见性：将 Polaris 上 MSM DRM 的注册延后 45 秒，让现有 initramfs 有机会先建立 USB ACM，然后仍执行第十版的显示 IOMMU 映射。延迟注册函数及其调用链已移出 `__init` 段；重新编译无 section mismatch 警告。诊断镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-iommu-serial-first.img` 为 17,752,064 字节，SHA-256 `04c87439efc2d0d58902be3feafcd4a5efe102d107e9525cedd66c35558fa0c8`。这不是修复候选，尚未在手机上启动；只应由 `fastboot boot` 从内存测试，不得刷写 recovery。
 
+第十一版已通过 `fastboot boot` 临时启动。用户观察到短暂背光黑屏、随后背光熄灭。USB 重连后 Ubuntu-Max 枚举 `0525:a4a7`，串口 `uname -r` 确认为 `7.2.8-polaris`。日志显示 0.28 秒计划延后 DRM，46.06 秒开始注册；46.08 秒 DSI PLL 锁定失败，46.105 秒在设备接入前调用 `iommu_map()` 返回 `-19`（`ENODEV`），因此根本没有建立 XBL IOMMU 映射。该错误使 DRM 初始化失败，46.108 秒又在 `dpu_kms_destroy`/`drm_atomic_private_obj_fini` 的错误清理路径触发内核 Oops；原映射假设仍未得到验证。日志存于 `diagnostics/logs/serial-linux728-xbl-iommu-serial-first-20261004-1322.log`。不能把本轮背光或 PLL 故障解释为映射方案有效；延迟 45 秒本身也可能改变 DSI 电源状态。第十一版不可刷写。
+
+用户自行重启回 Linux 桌面，串口再次确认 `6.1-sdm845`。第十二版只在主机编译，尚未实机启动：`diagnostics/patches/0009-linux728-polaris-xbl-iommu-after-attach.patch` 将只读恒等映射改到 `iommu_attach_device()` 成功之后，失败只记录警告并继续；`diagnostics/patches/0010-linux728-polaris-drm-delay-5s.patch` 将串口优先窗口从 45 秒缩为 5 秒，以减少迟注册对 DSI 供电状态的影响。镜像 `artifacts/linux728-polaris-candidate/polaris-linux728-xbl-iommu-after-attach.img` 为 17,756,160 字节，SHA-256 `6b7c4f20740af3de61390d2ddc0939dab75f61c992a7ff54e40e0c22b9b22821`。仍仅供 `fastboot boot` 临时诊断，不能刷写。
+
 编译和打包成功仍不能证明手机能启动，也不能证明 RCU 卡死已消失。后续需临时启动，确认显示、USB、UFS、触摸、Wi-Fi、音频和复现负载。旧版 7.2.8 临时镜像曾未可靠启动。

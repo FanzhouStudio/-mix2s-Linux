@@ -1,0 +1,14 @@
+--- a/drivers/gpu/drm/msm/msm_drv.c
++++ b/drivers/gpu/drm/msm/msm_drv.c
+@@ -1152,9 +1152,9 @@
+ static int __init msm_drm_register(void)
+ {
+ 	if (of_machine_is_compatible("xiaomi,polaris")) {
+-		pr_info("Polaris diagnostic: MSM DRM registration deferred 45 seconds\n");
++		pr_info("Polaris diagnostic: MSM DRM registration deferred 5 seconds\n");
+ 		schedule_delayed_work(&polaris_drm_register_work,
+-				      msecs_to_jiffies(45000));
++				      msecs_to_jiffies(5000));
+ 		return 0;
+ 	}
+ 
