@@ -70,6 +70,8 @@ def main() -> None:
                         help="Mount vendor firmware read-only before Ubuntu and stop initramfs workers")
     parser.add_argument("--lockup-trace", action="store_true",
                         help="Use the pseudo-NMI and lockup-detector variant of the after-attach kernel")
+    parser.add_argument("--pstore-trace", action="store_true",
+                        help="Use the RAM-only persistent log and lockup-detector variant")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
@@ -77,6 +79,10 @@ def main() -> None:
         parser.error("The vendor variant requires the Ubuntu overlay")
     if args.lockup_trace and not (args.after_attach and args.overlay_vendor):
         parser.error("Lockup tracing requires the vendor-first Ubuntu overlay")
+    if args.pstore_trace and not (args.after_attach and args.overlay_vendor):
+        parser.error("Pstore tracing requires the vendor-first Ubuntu overlay")
+    if args.pstore_trace and args.lockup_trace:
+        parser.error("Select only one tracing variant")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -90,18 +96,23 @@ def main() -> None:
         parser.error("Test legacy planes and XBL reservation separately")
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
-    kernel_name = ("Image-xbl-iommu-lockup-trace.gz" if args.lockup_trace else
+    kernel_name = ("Image-xbl-iommu-pstore-trace.gz" if args.pstore_trace else
+                   "Image-xbl-iommu-lockup-trace.gz" if args.lockup_trace else
                    "Image-xbl-iommu-after-attach.gz" if args.after_attach else
                    "Image-xbl-iommu-serial-first.gz" if args.serial_first else
                    "Image-xbl-iommu.gz" if args.xbl_iommu_map else "Image.gz")
     kernel = (OUT / kernel_name).read_bytes()
-    dtb_name = ("sdm845-xiaomi-polaris-xbl-reserved.dtb"
+    dtb_name = ("sdm845-xiaomi-polaris-xbl-pstore.dtb" if args.pstore_trace else
+                "sdm845-xiaomi-polaris-xbl-reserved.dtb"
                 if args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach
                 else "sdm845-xiaomi-polaris.dtb")
     dtb = (OUT / dtb_name).read_bytes()
     if (args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach) and b"framebuffer@9d400000" not in dtb:
         raise ValueError("Selected DTB has no XBL framebuffer reservation")
-    config = (OUT / ("kernel-lockup-trace.config" if args.lockup_trace else
+    if args.pstore_trace and b"ramoops@9f800000" not in dtb:
+        raise ValueError("Selected DTB has no reserved ramoops region")
+    config = (OUT / ("kernel-pstore-trace.config" if args.pstore_trace else
+                     "kernel-lockup-trace.config" if args.lockup_trace else
                      "kernel.config")).read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
                    "USB_CONFIGFS", "USB_CONFIGFS_ACM", "U_SERIAL_CONSOLE",
@@ -114,11 +125,15 @@ def main() -> None:
         raise ValueError("Unexpected kernel or DTB format")
     if "# CONFIG_USB_G_SERIAL is not set\n" not in config:
         raise ValueError("Legacy gadget must not claim the UDC before init")
-    if args.lockup_trace:
+    if args.lockup_trace or args.pstore_trace:
         for option in ("ARM64_PSEUDO_NMI", "SOFTLOCKUP_DETECTOR",
                        "HARDLOCKUP_DETECTOR", "HARDLOCKUP_DETECTOR_PERF"):
             if f"CONFIG_{option}=y\n" not in config:
                 raise ValueError(f"Required lockup detector missing: {option}")
+    if args.pstore_trace:
+        for option in ("PSTORE_RAM", "PSTORE_CONSOLE", "PSTORE_PMSG"):
+            if f"CONFIG_{option}=y\n" not in config:
+                raise ValueError(f"Required RAM log option missing: {option}")
     if boot[:8] != b"ANDROID!":
         raise ValueError("Unexpected reference boot image")
     fields = list(struct.unpack_from("<10I", boot, 8))
@@ -173,7 +188,7 @@ def main() -> None:
     cmdline = b"console=tty0 console=ttyGS0 loglevel=6 panic=0 fw_devlink=off deferred_probe_timeout=60 rdinit=/init mobile.qcomsoc=qcom/sdm845 mobile.vendor=xiaomi mobile.model=polaris"
     if args.legacy_dpu_planes:
         cmdline += b" msm.dpu_use_virtual_planes=0"
-    if args.lockup_trace:
+    if args.lockup_trace or args.pstore_trace:
         cmdline += b" irqchip.gicv3_pseudo_nmi=1 nmi_watchdog=1 watchdog_thresh=10"
     if len(cmdline) > 512:
         raise ValueError("Diagnostic kernel command line exceeds boot image field")
@@ -187,7 +202,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-lockup-trace-overlay-diag.img"
+    image_name = ("polaris-linux728-pstore-trace-overlay-diag.img"
+                  if args.pstore_trace else
+                  "polaris-linux728-lockup-trace-overlay-diag.img"
                   if args.lockup_trace else
                   "polaris-linux728-ubuntu-overlay-vendor-diag.img"
                   if args.overlay_vendor else
@@ -203,7 +220,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("lockup-trace-overlay-diag-manifest.json"
+    manifest_name = ("pstore-trace-overlay-diag-manifest.json"
+                     if args.pstore_trace else
+                     "lockup-trace-overlay-diag-manifest.json"
                      if args.lockup_trace else
                      "ubuntu-overlay-vendor-diag-manifest.json"
                      if args.overlay_vendor else
@@ -234,6 +253,7 @@ def main() -> None:
         "ubuntu_overlay_manual_activation": args.ubuntu_overlay,
         "vendor_firmware_mounted_ro_before_ubuntu": args.overlay_vendor,
         "lockup_trace": args.lockup_trace,
+        "pstore_trace": args.pstore_trace,
         "zap_firmware": args.include_zap_firmware,
         "legacy_dpu_planes": args.legacy_dpu_planes,
         "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach,

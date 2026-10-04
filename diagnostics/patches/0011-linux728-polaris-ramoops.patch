@@ -1,0 +1,19 @@
+--- a/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
+@@ -106,6 +106,16 @@
+ 			no-map;
+ 		};
+ 
++		/* RAM-only crash breadcrumbs, immediately after the XBL scanout reserve. */
++		ramoops@9f800000 {
++			compatible = "ramoops";
++			reg = <0 0x9f800000 0 0x00200000>;
++			record-size = <0x00010000>;
++			console-size = <0x00080000>;
++			pmsg-size = <0x00100000>;
++			ecc-size = <16>;
++		};
++
+ 		rmtfs_mem: memory@f6301000 {
+ 			compatible = "qcom,rmtfs-mem";
+ 			reg = <0 0xf6301000 0 0x200000>;
