@@ -47,9 +47,13 @@ acceptance sequence before any `boot` flash.
 The serial kernel log identified the cause: `EXT4-fs (sda21): The kernel was
 not built with CONFIG_QUOTA and CONFIG_QFMT_V2`. A read-only `ro,noload`
 mount of the same partition succeeded and exposed the expected Ubuntu root.
-The rebuilt kernel has both `CONFIG_QUOTA=y` and `CONFIG_QFMT_V2=y`; the new
-image hash above has not been booted yet. The revised diagnostic screen also
-shows storage kernel messages when root mounting fails.
+The rebuilt kernel has both `CONFIG_QUOTA=y` and `CONFIG_QFMT_V2=y`. Its
+temporary boot on 2026-10-05 reached Ubuntu GNOME with `/dev/sda21` mounted
+`rw,noatime`; USB ACM, Wi-Fi, GPU render node, and PipeWire speaker sink were
+present. The 7.2.8 module and audio bind mounts were active, and the runtime
+generator masked 6.1-specific services. This is a partial acceptance only:
+touch/wake user checks, 6.1 recovery rollback, and normal boot after a flash
+have not yet been confirmed. No partition has been flashed.
 
 Its initramfs mounts `vendor` and `modem` read-only and the already prepared
 Ubuntu `userdata` ext4 read-write. It checks the Ubuntu root marker and
