@@ -163,3 +163,22 @@ through its loopback proxy to a loopback HTTP server; the core remained alive
 and the desktop stayed responsive. This checks basic core startup and local
 proxy traffic only. It does not cover the user's actual proxy configuration,
 remote network traffic, or the Clash Verge graphical interface.
+
+For a GUI control, a GTK3 window was shown through Xwayland with the GNOME
+session's X authority, and the user confirmed it was visible. WebKitGTK's
+`MiniBrowser` then displayed a local HTML page through the same X11 session
+with `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`; the user confirmed it was visible
+and the phone remained responsive for 15 seconds. These are short, simple
+window tests, not a WebKit stress test.
+
+Launching Clash Verge with the same X11 session and shared-memory WebKit
+renderer initially showed its window, but the user then reported another
+whole-phone freeze without interacting with it. The 25-second `timeout`
+wrapper never returned to the serial shell. The USB ACM gadget remained
+enumerated while the serial shell stopped responding, and its last output was
+the launch command; no kernel backtrace was emitted. A host-only copy of the
+serial transcript is in
+`diagnostics/logs/serial-linux728-clash-x11-freeze-20261004.log`. This result
+rules out a simple Xwayland launch failure and a failure of the basic Mihomo
+proxy path, but it does not identify which Clash/WebKit activity or kernel
+subsystem locks the SoC. The recovery partition must remain on 6.1.
