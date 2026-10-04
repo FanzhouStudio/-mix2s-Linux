@@ -65,10 +65,13 @@ HCI firmware setup completed, though pairing has not been tried.
 
 ADSP reached `running`. The TAS2559 module loaded its speaker firmware, ALSA
 registered `Xiaomi Mi Mix2S` card 0, and PipeWire exposed a built-in speaker
-sink. The first short PipeWire test was inaudible. The existing WirePlumber
+sink. The first short PipeWire test was inaudible. Direct playback through
+`hw:Mix2S,0` with 48 kHz stereo S16LE was audible, confirming that the
+7.2.8 kernel, ADSP and speaker amplifier can produce sound. The existing WirePlumber
 rule matched the old 6.1 node name only, so this image now stages a rule that
 also matches the 7.2.8 `alsa_output.platform-sound` node and forces S16LE
-without mmap. Audible output still requires confirmation on the next boot.
+without mmap. Audible output through the default PipeWire sink still requires
+confirmation; initial follow-up tests used reduced stream and sink volumes.
 
 QMI found the sole present China Telecom USIM. Activating the primary GW
 provisioning session, then restarting ModemManager, registered on LTE. The
