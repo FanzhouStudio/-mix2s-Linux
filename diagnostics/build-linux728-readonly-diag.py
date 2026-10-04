@@ -66,9 +66,13 @@ def main() -> None:
                         help="Delay DRM 5 seconds and map XBL only after IOMMU attach")
     parser.add_argument("--ubuntu-overlay", action="store_true",
                         help="Prepare manual Ubuntu read-only root with RAM overlay on the proven after-attach kernel")
+    parser.add_argument("--overlay-vendor", action="store_true",
+                        help="Mount vendor firmware read-only before Ubuntu and stop initramfs workers")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
+    if args.overlay_vendor and not args.ubuntu_overlay:
+        parser.error("The vendor variant requires the Ubuntu overlay")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -125,7 +129,9 @@ def main() -> None:
         add(directory, stat.S_IFDIR | 0o755)
     add("bin/busybox", stat.S_IFREG | 0o755, busybox)
     add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
-    init_name = "init-linux728-overlay" if args.ubuntu_overlay else "init-linux728-readonly"
+    init_name = ("init-linux728-overlay-vendor" if args.overlay_vendor else
+                 "init-linux728-overlay" if args.ubuntu_overlay else
+                 "init-linux728-readonly")
     add("init", stat.S_IFREG | 0o755,
         (ROOT / "diagnostics" / init_name).read_bytes())
     if args.ubuntu_overlay:
@@ -168,7 +174,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-ubuntu-overlay-diag.img"
+    image_name = ("polaris-linux728-ubuntu-overlay-vendor-diag.img"
+                  if args.overlay_vendor else
+                  "polaris-linux728-ubuntu-overlay-diag.img"
                   if args.ubuntu_overlay else
                   "polaris-linux728-xbl-iommu-after-attach.img"
                   if args.after_attach else
@@ -180,7 +188,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("ubuntu-overlay-diag-manifest.json"
+    manifest_name = ("ubuntu-overlay-vendor-diag-manifest.json"
+                     if args.overlay_vendor else
+                     "ubuntu-overlay-diag-manifest.json"
                      if args.ubuntu_overlay else
                      "xbl-iommu-after-attach-manifest.json"
                      if args.after_attach else
@@ -205,6 +215,7 @@ def main() -> None:
         "storage_mounts": "userdata ext4 ro,noload; RAM overlay after manual activation" if args.ubuntu_overlay else False,
         "partition_flash": False,
         "ubuntu_overlay_manual_activation": args.ubuntu_overlay,
+        "vendor_firmware_mounted_ro_before_ubuntu": args.overlay_vendor,
         "zap_firmware": args.include_zap_firmware,
         "legacy_dpu_planes": args.legacy_dpu_planes,
         "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach,
