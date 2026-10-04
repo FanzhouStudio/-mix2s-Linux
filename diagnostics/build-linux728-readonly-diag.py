@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a RAM-only, no-storage-mount Android boot v0 image for Polaris."""
+"""Build Polaris 7.2.8 Android boot v0 diagnostic and dual-kernel images."""
 
 from __future__ import annotations
 
@@ -80,6 +80,8 @@ def main() -> None:
                         help="Automatically start the integrated Ubuntu RAM overlay and hardware services")
     parser.add_argument("--offscreen-xvfb", action="store_true",
                         help="Bundle an Xvfb runtime in RAM for offscreen GUI isolation")
+    parser.add_argument("--persistent-dualboot", action="store_true",
+                        help="Boot the existing Ubuntu userdata read-write while preserving 6.1 recovery")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
@@ -99,6 +101,10 @@ def main() -> None:
         parser.error("Automatic integrated boot requires --integrated")
     if args.offscreen_xvfb and not args.integrated_auto:
         parser.error("Offscreen Xvfb requires automatic integrated boot")
+    if args.persistent_dualboot and not args.integrated_auto:
+        parser.error("Persistent dual-kernel boot requires automatic integrated boot")
+    if args.persistent_dualboot and args.offscreen_xvfb:
+        parser.error("Do not bundle the offscreen test into a persistent boot image")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -174,7 +180,8 @@ def main() -> None:
         add(directory, stat.S_IFDIR | 0o755)
     add("bin/busybox", stat.S_IFREG | 0o755, busybox)
     add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
-    init_name = ("init-linux728-overlay-integrated" if args.integrated else
+    init_name = ("init-linux728-persistent-dualboot" if args.persistent_dualboot else
+                 "init-linux728-overlay-integrated" if args.integrated else
                  "init-linux728-overlay-vendor" if args.overlay_vendor else
                  "init-linux728-overlay" if args.ubuntu_overlay else
                  "init-linux728-readonly")
@@ -200,6 +207,10 @@ def main() -> None:
             add("etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf",
                 stat.S_IFREG | 0o644,
                 (ROOT / "diagnostics/alsa-ucm/90-polaris-audio.conf").read_bytes())
+            if args.persistent_dualboot:
+                add("usr/lib/systemd/system-generators/polaris728-service-generator",
+                    stat.S_IFREG | 0o755,
+                    (ROOT / "diagnostics/polaris728-service-generator").read_bytes())
             if args.integrated_auto:
                 add("usr/local/sbin/polaris728-hardware-start", stat.S_IFREG | 0o755,
                     (ROOT / "diagnostics/polaris728-hardware-start").read_bytes())
@@ -250,7 +261,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-integrated-auto-offscreen-diag.img"
+    image_name = ("polaris-linux728-dualboot-persistent-candidate.img"
+                  if args.persistent_dualboot else
+                  "polaris-linux728-integrated-auto-offscreen-diag.img"
                   if args.offscreen_xvfb else
                   "polaris-linux728-integrated-auto-overlay-diag.img"
                   if args.integrated_auto else
@@ -274,7 +287,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("integrated-auto-offscreen-diag-manifest.json"
+    manifest_name = ("dualboot-persistent-candidate-manifest.json"
+                     if args.persistent_dualboot else
+                     "integrated-auto-offscreen-diag-manifest.json"
                      if args.offscreen_xvfb else
                      "integrated-auto-overlay-diag-manifest.json"
                      if args.integrated_auto else
@@ -308,7 +323,9 @@ def main() -> None:
         "ramdisk_sha256": hashlib.sha256(ramdisk).hexdigest(),
         "image_sha256": hashlib.sha256(image).hexdigest(),
         "image_bytes": len(image),
-        "storage_mounts": ("userdata ext4 ro,noload; automatic RAM overlay"
+        "storage_mounts": ("userdata ext4 rw,noatime; vendor/modem read-only"
+                            if args.persistent_dualboot else
+                            "userdata ext4 ro,noload; automatic RAM overlay"
                             if args.integrated_auto else
                             "userdata ext4 ro,noload; RAM overlay after manual activation"
                             if args.ubuntu_overlay else False),
@@ -317,7 +334,8 @@ def main() -> None:
         "vendor_firmware_mounted_ro_before_ubuntu": args.overlay_vendor,
         "modem_firmware_mounted_ro_before_ubuntu": args.integrated,
         "integrated_hardware_candidate": args.integrated,
-        "automatic_ram_overlay_boot": args.integrated_auto,
+        "automatic_ram_overlay_boot": args.integrated_auto and not args.persistent_dualboot,
+        "persistent_dualboot_candidate": args.persistent_dualboot,
         "offscreen_xvfb_in_ram": args.offscreen_xvfb,
         "lockup_trace": args.lockup_trace,
         "pstore_trace": args.pstore_trace,

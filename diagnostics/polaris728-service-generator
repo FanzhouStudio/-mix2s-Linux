@@ -1,0 +1,20 @@
+#!/bin/sh
+# systemd passes normal, early, and late generator directories as $1..$3.
+# An early generated mask outranks the 6.1 units installed under /etc.
+[ "$(uname -r)" = 7.2.8-polaris ] || exit 0
+early=$2
+[ -n "$early" ] || exit 1
+mkdir -p "$early" || exit 1
+for unit in \
+    polaris-stability.service polaris-battery.service \
+    polaris-performance.service polaris-sim-prepare.service \
+    polaris-slpi-guard.service polaris-touch-wake.service \
+    polaris-bluetooth-up.service polaris-wifi-up.service \
+    polaris-rmnet.service polaris-firstboot-desktop.service \
+    polaris-grow-root.service polaris-cleanup-initramfs-watch.service \
+    polaris-audio.service systemd-modules-load.service \
+    apt-daily.service apt-daily.timer apt-daily-upgrade.service \
+    apt-daily-upgrade.timer 1panel-agent.service 1panel-core.service \
+    opt-QQ.mount e2scrub_reap.service dpkg-db-backup.timer; do
+    ln -sfn /dev/null "$early/$unit" || exit 1
+done

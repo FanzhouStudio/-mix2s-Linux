@@ -1,0 +1,194 @@
+#!/bin/sh
+# Linux 7.2.8 boot-partition init for the existing persistent Ubuntu userdata.
+# The 6.1 recovery image is independent and is never modified here.
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+/bin/busybox mount -t proc proc /proc
+/bin/busybox mount -t sysfs sysfs /sys
+/bin/busybox mount -t devtmpfs devtmpfs /dev
+/bin/busybox mkdir -p /dev/pts /run /tmp /sys/kernel/config /sys/fs/pstore
+/bin/busybox mount -t pstore pstore /sys/fs/pstore 2>/dev/null || true
+/bin/busybox mount -t devpts devpts /dev/pts
+/bin/busybox mount -t tmpfs tmpfs /run
+/bin/busybox mount -t tmpfs tmpfs /tmp
+/bin/busybox --install -s /bin
+exec >>/run/init.log 2>&1
+echo 'POLARIS 7.2.8: persistent dual-kernel init started'
+uname -a
+cat /proc/cmdline
+echo 0 >/proc/sys/kernel/panic
+echo WAITING >/run/usb-status
+echo WAITING >/run/ubuntu-status
+autostart=no
+case " $(cat /proc/cmdline) " in
+    *' polaris.autostart=1 '*) autostart=yes ;;
+esac
+
+setup_usb() {
+    mount -t configfs configfs /sys/kernel/config || return 1
+    g=/sys/kernel/config/usb_gadget/polaris_diag
+    mkdir "$g" || return 1
+    echo 0x0525 >"$g/idVendor"
+    echo 0xa4a7 >"$g/idProduct"
+    echo 0x0200 >"$g/bcdUSB"
+    mkdir -p "$g/strings/0x409" "$g/configs/c.1/strings/0x409"
+    echo polaris-linux728-dualboot >"$g/strings/0x409/serialnumber"
+    echo 'Polaris Linux' >"$g/strings/0x409/manufacturer"
+    echo 'Linux 7.2.8 persistent Ubuntu' >"$g/strings/0x409/product"
+    echo ACM >"$g/configs/c.1/strings/0x409/configuration"
+    echo 100 >"$g/configs/c.1/MaxPower"
+    mkdir "$g/functions/acm.usb0" || return 1
+    ln -s "$g/functions/acm.usb0" "$g/configs/c.1/acm.usb0" || return 1
+    echo 1 >"$g/functions/acm.usb0/console" || return 1
+    n=0
+    while [ "$n" -lt 60 ]; do
+        for c in /sys/class/udc/*; do
+            [ -e "$c" ] || continue
+            [ -z "$(cat "$c/function" 2>/dev/null)" ] || continue
+            if echo "${c##*/}" >"$g/UDC"; then
+                echo READY >/run/usb-status
+                echo "ACM bound: ${c##*/}"
+                return 0
+            fi
+        done
+        n=$((n+1)); sleep 1
+    done
+    echo FAILED >/run/usb-status
+    return 1
+}
+
+(
+    if setup_usb; then
+        while [ ! -c /dev/ttyGS0 ]; do sleep 1; done
+        while :; do
+            [ -e /run/start-ubuntu-persistent ] && { sleep 1; continue; }
+            setsid -c /bin/sh -i </dev/ttyGS0 >/dev/ttyGS0 2>&1
+            sleep 1
+        done
+    fi
+) &
+usb_pid=$!
+
+(
+    while :; do
+        {
+            printf '\033[2J\033[H'
+            echo 'POLARIS / LINUX 7.2.8'
+            echo 'INIT: PERSISTENT UBUNTU BOOT'
+            echo 'STORAGE: USERDATA RW AFTER VERIFICATION'
+            echo "ACM: $(cat /run/usb-status)"
+            echo "ROOTFS: $(cat /run/ubuntu-status)"
+            echo "UPTIME: $(cut -d ' ' -f 1 /proc/uptime) seconds"
+            echo 'Recent init messages:'
+            tail -8 /run/init.log
+        } >/dev/tty1 2>/dev/null
+        sleep 5
+    done
+) &
+screen_pid=$!
+
+mount_partition_ro() {
+    part=$1; type=$2; opts=$3; dest=$4
+    mkdir -p "$dest"
+    for event in /sys/class/block/*/uevent; do
+        [ -r "$event" ] || continue
+        grep -q "^PARTNAME=$part$" "$event" || continue
+        b=${event%/uevent}; dev=/dev/${b##*/}
+        blockdev --setro "$dev" || return 1
+        [ "$(blockdev --getro "$dev")" = 1 ] || return 1
+        mount -t "$type" -o "$opts" "$dev" "$dest" || return 1
+        grep -q "^$dev $dest $type ro," /proc/mounts || return 1
+        echo "READ-ONLY: $part at $dev"
+        return 0
+    done
+    return 1
+}
+
+boot_ubuntu_persistent() {
+    echo TRYING >/run/ubuntu-status
+    # Keep failures on the diagnostic screen even if host USB cannot enumerate.
+    exec >>/run/init.log 2>&1
+    echo 'ROOTFS: mounting vendor and modem firmware read-only'
+    mount_partition_ro vendor ext4 ro,noload /run/vendor || return 1
+    [ -r /run/vendor/firmware/a630_zap.elf ] || return 1
+    mount_partition_ro modem vfat ro /run/modem || return 1
+    [ -r /run/modem/image/mba.mbn ] || return 1
+    [ -r /run/modem/image/modem.mdt ] || return 1
+    [ -r /run/modem/image/adsp.mdt ] || return 1
+    rootdev=
+    for event in /sys/class/block/*/uevent; do
+        [ -r "$event" ] || continue
+        grep -q '^PARTNAME=userdata$' "$event" || continue
+        b=${event%/uevent}
+        rootdev=/dev/${b##*/}
+        break
+    done
+    [ -n "$rootdev" ] && [ -b "$rootdev" ] || return 1
+    mkdir -p /newroot
+    echo "ROOTFS: mounting $rootdev read-write"
+    mount -t ext4 -o rw,noatime "$rootdev" /newroot || return 1
+    grep -q "^$rootdev /newroot ext4 rw," /proc/mounts || return 1
+    [ -r /newroot/etc/polaris-ubuntu-rootfs ] || return 1
+    [ -x /newroot/usr/lib/systemd/systemd ] || return 1
+    [ "$(readlink /newroot/sbin/init)" = /usr/lib/systemd/systemd ] || return 1
+    echo 'ROOTFS: staging 7.2.8 modules in RAM; keeping 6.1 files intact'
+    mkdir -p /run/polaris728/modules /newroot/lib/modules/7.2.8-polaris/diag
+    cp /lib/modules/7.2.8-polaris/diag/*.ko /run/polaris728/modules/ || return 1
+    mount --bind /run/polaris728/modules /newroot/lib/modules/7.2.8-polaris/diag || return 1
+    echo 'ROOTFS: installing version-gated helpers and service generator'
+    mkdir -p /newroot/lib/modules/7.2.8-polaris/diag
+    mkdir -p /newroot/usr/local/sbin
+    cp /usr/local/sbin/polaris-integrated-bringup /newroot/usr/local/sbin/polaris-integrated-bringup || return 1
+    chmod 0755 /newroot/usr/local/sbin/polaris-integrated-bringup || return 1
+    cp /usr/local/sbin/polaris-sim-prepare728 /newroot/usr/local/sbin/polaris-sim-prepare728 || return 1
+    chmod 0755 /newroot/usr/local/sbin/polaris-sim-prepare728 || return 1
+    cp /usr/local/sbin/polaris728-hardware-start /newroot/usr/local/sbin/polaris728-hardware-start || return 1
+    chmod 0755 /newroot/usr/local/sbin/polaris728-hardware-start || return 1
+    mkdir -p /newroot/usr/lib/systemd/system-generators
+    cp /usr/lib/systemd/system-generators/polaris728-service-generator /newroot/usr/lib/systemd/system-generators/polaris728-service-generator || return 1
+    chmod 0755 /newroot/usr/lib/systemd/system-generators/polaris728-service-generator || return 1
+    mkdir -p /newroot/etc/systemd/system/multi-user.target.wants
+    cp /etc/systemd/system/polaris728-hardware.service /newroot/etc/systemd/system/polaris728-hardware.service || return 1
+    ln -sfn ../polaris728-hardware.service /newroot/etc/systemd/system/multi-user.target.wants/polaris728-hardware.service || return 1
+    echo 'ROOTFS: applying the 7.2.8 audio format only for this boot'
+    mkdir -p /newroot/etc/wireplumber/wireplumber.conf.d
+    cp /etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf /run/polaris728/90-polaris-audio.conf || return 1
+    audio_target=/newroot/etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf
+    [ -e "$audio_target" ] || : >"$audio_target"
+    mount --bind /run/polaris728/90-polaris-audio.conf "$audio_target" || return 1
+    [ -r /newroot/lib/firmware/qcom/sdm845/polaris/a630_zap.mbn ] || return 1
+    [ -r /newroot/lib/firmware/qcom/sdm845/polaris/mba.mbn ] || return 1
+    echo 'ROOTFS: stopping initramfs workers before switch_root'
+    kill "$usb_pid" "$screen_pid" 2>/dev/null || true
+    wait "$usb_pid" "$screen_pid" 2>/dev/null || true
+    echo 'ROOTFS: moving virtual filesystems'
+    for point in dev proc sys run tmp; do
+        mkdir -p "/newroot/$point"
+        mount --move "/$point" "/newroot/$point" || return 1
+    done
+    echo 'POLARIS: starting persistent Ubuntu 26.04 from userdata'
+    exec /bin/busybox switch_root /newroot /sbin/init
+}
+
+trap ':' HUP INT TERM
+if [ "$autostart" = yes ]; then
+    (
+        n=0
+        while [ "$n" -lt 60 ] && [ "$(cat /run/usb-status)" != READY ]; do
+            sleep 1
+            n=$((n+1))
+        done
+        sleep 8
+        echo 'AUTO: starting persistent Ubuntu userdata root' >>/run/init.log
+        touch /run/start-ubuntu-persistent
+    ) &
+fi
+while :; do
+    if [ -e /run/start-ubuntu-persistent ]; then
+        sleep 2
+        boot_ubuntu_persistent
+        echo FAILED >/run/ubuntu-status
+        echo 'Persistent Ubuntu start failed; staying in RAM diagnostics'
+        rm -f /run/start-ubuntu-persistent
+    fi
+    sleep 2
+done
