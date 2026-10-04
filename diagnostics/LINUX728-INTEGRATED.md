@@ -189,3 +189,26 @@ idle. If that still freezes the phone, the visible scanout/compositor path is
 not required for reproduction. If it remains responsive, compare it with the
 already-failing visible Xwayland launch. Keep the test in a RAM boot and bound
 its runtime; a bound cannot terminate a process after a whole-SoC lockup.
+
+## Offscreen diagnostic candidate (not yet booted)
+
+`diagnostics/build-xvfb-offscreen-bundle.sh` downloads Ubuntu arm64 `xvfb`
+and `libunwind8`, checks their package SHA-256 hashes, and produces a
+reproducible `xvfb-runtime-arm64.tgz`. Build a separate RAM-only image with:
+
+```sh
+python3 diagnostics/build-linux728-readonly-diag.py \
+  --after-attach --ubuntu-overlay --overlay-vendor \
+  --integrated --integrated-auto --offscreen-xvfb
+```
+
+The output is
+`artifacts/linux728-polaris-candidate/polaris-linux728-integrated-auto-offscreen-diag.img`.
+The builder verifies the Xvfb bundle hash and stages it in `/tmp` on the
+phone before `switch_root`; it is never installed to userdata. As built on
+2026-10-04, the image is 23,117,824 bytes with SHA-256
+`4e9238e21bdd4aa4be738cfd8620215a1ffc549f71aee11d99a3ac25c12c37c1`.
+Use only `fastboot boot`. After confirming GNOME, Wi-Fi and serial, unpack
+the bundle inside `/tmp` and launch Clash on a non-networked Xvfb display
+with software GL. This isolates the app and WebKit from the physical DRM
+scanout path; it may still freeze the phone, so preserve the 6.1 recovery.

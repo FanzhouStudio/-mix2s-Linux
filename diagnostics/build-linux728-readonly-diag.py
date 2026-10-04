@@ -27,6 +27,8 @@ ZAP_FIRMWARE = ART / "firmware/polaris/a630_zap.mbn"
 ZAP_FIRMWARE_HASH = "c0a830808c7ae886e5a5b6dec48afb9c9805d0579d9cac498ebc36b8b06bedde"
 OVERLAY_MODULE = OUT / "overlay.ko"
 OVERLAY_MODULE_HASH = "0086468d1577134c5fc98723954f18f9019815301bf8a4d8abb899740cee9c1a"
+OFFSCREEN_XVFB = OUT / "xvfb-offscreen/xvfb-runtime-arm64.tgz"
+OFFSCREEN_XVFB_HASH = "789b83801919893235c79ac927c6df8621db7246ac169b50e470268d590a6616"
 IMAGE = OUT / "polaris-linux728-readonly-diag.img"
 MANIFEST = OUT / "readonly-diag-manifest.json"
 
@@ -76,6 +78,8 @@ def main() -> None:
                         help="Build the RAM-only 7.2.8 Wi-Fi, modem, audio and GPU candidate")
     parser.add_argument("--integrated-auto", action="store_true",
                         help="Automatically start the integrated Ubuntu RAM overlay and hardware services")
+    parser.add_argument("--offscreen-xvfb", action="store_true",
+                        help="Bundle an Xvfb runtime in RAM for offscreen GUI isolation")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
@@ -93,6 +97,8 @@ def main() -> None:
         parser.error("Integrated hardware and tracing variants are separate")
     if args.integrated_auto and not args.integrated:
         parser.error("Automatic integrated boot requires --integrated")
+    if args.offscreen_xvfb and not args.integrated_auto:
+        parser.error("Offscreen Xvfb requires automatic integrated boot")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -199,6 +205,9 @@ def main() -> None:
                     (ROOT / "diagnostics/polaris728-hardware-start").read_bytes())
                 add("etc/systemd/system/polaris728-hardware.service", stat.S_IFREG | 0o644,
                     (ROOT / "diagnostics/polaris728-hardware.service").read_bytes())
+                if args.offscreen_xvfb:
+                    add("opt/polaris/xvfb-runtime-arm64.tgz", stat.S_IFREG | 0o644,
+                        read_verified(OFFSCREEN_XVFB, OFFSCREEN_XVFB_HASH))
         else:
             add("lib/modules/7.2.8-polaris/diag/overlay.ko", stat.S_IFREG | 0o644,
                 read_verified(OVERLAY_MODULE, OVERLAY_MODULE_HASH))
@@ -241,7 +250,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-integrated-auto-overlay-diag.img"
+    image_name = ("polaris-linux728-integrated-auto-offscreen-diag.img"
+                  if args.offscreen_xvfb else
+                  "polaris-linux728-integrated-auto-overlay-diag.img"
                   if args.integrated_auto else
                   "polaris-linux728-integrated-overlay-diag.img"
                   if args.integrated else
@@ -263,7 +274,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("integrated-auto-overlay-diag-manifest.json"
+    manifest_name = ("integrated-auto-offscreen-diag-manifest.json"
+                     if args.offscreen_xvfb else
+                     "integrated-auto-overlay-diag-manifest.json"
                      if args.integrated_auto else
                      "integrated-overlay-diag-manifest.json"
                      if args.integrated else
@@ -305,6 +318,7 @@ def main() -> None:
         "modem_firmware_mounted_ro_before_ubuntu": args.integrated,
         "integrated_hardware_candidate": args.integrated,
         "automatic_ram_overlay_boot": args.integrated_auto,
+        "offscreen_xvfb_in_ram": args.offscreen_xvfb,
         "lockup_trace": args.lockup_trace,
         "pstore_trace": args.pstore_trace,
         "zap_firmware": args.include_zap_firmware,

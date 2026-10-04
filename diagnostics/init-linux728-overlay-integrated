@@ -134,6 +134,10 @@ boot_ubuntu_overlay() {
     mkdir -p /run/overlay/upper /run/overlay/work
     mount -t overlay overlay -o lowerdir=/run/ubuntu,upperdir=/run/overlay/upper,workdir=/run/overlay/work /newroot || return 1
     [ -r /newroot/etc/polaris-ubuntu-rootfs ] || return 1
+    if [ -r /opt/polaris/xvfb-runtime-arm64.tgz ]; then
+        cp /opt/polaris/xvfb-runtime-arm64.tgz /tmp/polaris-xvfb-runtime-arm64.tgz || return 1
+        echo 'OVERLAY: Xvfb diagnostic bundle staged in RAM tmpfs'
+    fi
     echo 'OVERLAY: masking services that require the old kernel or write heavily'
     mkdir -p /newroot/etc/systemd/system
     for unit in polaris-stability.service polaris-battery.service polaris-performance.service polaris-sim-prepare.service polaris-slpi-guard.service polaris-touch-wake.service polaris-bluetooth-up.service polaris-wifi-up.service polaris-rmnet.service polaris-firstboot-desktop.service polaris-grow-root.service polaris-cleanup-initramfs-watch.service polaris-audio.service systemd-modules-load.service apt-daily.service apt-daily.timer apt-daily-upgrade.service apt-daily-upgrade.timer 1panel-agent.service 1panel-core.service opt-QQ.mount e2scrub_reap.service dpkg-db-backup.timer; do
