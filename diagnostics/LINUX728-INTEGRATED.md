@@ -226,3 +226,20 @@ The next build keeps screen diagnostics active through a failed Ubuntu overlay
 attempt and writes its errors to `/run/init.log` for display, instead of
 redirecting them to an unenumerated USB serial port. Its SHA-256 is
 `1820f15afd40b23e414599b4de31ac47904aa1c0a849100d36e79ff28f4e0e95`.
+
+This revised image booted Ubuntu 26.04 on 2026-10-04. USB ACM enumerated,
+`7.2.8-polaris` reached GDM, and the physical userdata mount was
+`/dev/sda21 ro,relatime,norecovery` under a writable RAM overlay. The Xvfb
+bundle hash matched `789b83801919893235c79ac927c6df8621db7246ac169b50e470268d590a6616`.
+Xvfb `:90` started from `/tmp`, and a five-second GTK3 control window on
+`:90` opened and closed normally. After hardware bringup finished, Clash
+Verge was launched on `DISPLAY=:90` with X11, software GL, and shared-memory
+WebKit rendering. Clash, WebKitWebProcess, and the Verge Mihomo sidecar all
+started. The serial console then reported an RCU stall involving CPU 5 at
+approximately 266 seconds uptime and stopped responding shortly afterward;
+the 30-second `timeout` did not restore command response. A USB ACM device
+remained enumerated on the host. A serial BREAK followed by SysRq `l` did
+not produce an additional backtrace. This shows that hiding the Clash window
+from the physical display is insufficient to avoid the freeze. It does not
+identify which of Clash, WebKit, its sidecar, or their kernel interactions
+caused the stall. Host capture: `diagnostics/logs/serial-linux728-integrated-reboot-20261004.log`.
