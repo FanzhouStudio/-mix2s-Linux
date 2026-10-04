@@ -88,10 +88,20 @@ case "${1:-status}" in
             echo 'SIM preparation failed safely; restarting ModemManager without retry' >&2
         fi
         systemctl restart ModemManager.service
-        sleep 3
-        modem=$(mmcli -L 2>/dev/null | sed -n 's@.*/Modem/\([0-9][0-9]*\).*@\1@p' | head -n 1)
+        n=0
+        modem=
+        while [ "$n" -lt 20 ] && [ -z "$modem" ]; do
+            modem=$(mmcli -L 2>/dev/null | sed -n 's@.*/Modem/\([0-9][0-9]*\).*@\1@p' | head -n 1)
+            [ -n "$modem" ] || sleep 2
+            n=$((n+1))
+        done
         if [ -n "$modem" ]; then
-            mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g || true
+            n=0
+            until mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g; do
+                n=$((n+1))
+                [ "$n" -lt 5 ] || break
+                sleep 3
+            done
         fi
         status
         ;;

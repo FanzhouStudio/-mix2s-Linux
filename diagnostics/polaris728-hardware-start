@@ -2,10 +2,31 @@
 # Runs only in the 7.2.8 RAM overlay. Each stage can be inspected in journalctl.
 set -eu
 [ "$(uname -r)" = 7.2.8-polaris ] || exit 0
+# The first automatic boot raced ModemManager against the remote firmware
+# servers. Start the Qualcomm services before ModemManager probes the modem.
+systemctl stop ModemManager.service || true
+sleep 2
 /usr/local/sbin/polaris-integrated-bringup core
 if ! /usr/local/sbin/polaris-integrated-bringup audio; then
     echo 'POLARIS 7.2.8: audio bringup failed; continuing with networking' >&2
 fi
 if ! /usr/local/sbin/polaris-integrated-bringup cellular; then
     echo 'POLARIS 7.2.8: cellular bringup failed' >&2
+fi
+
+# ath10k probes asynchronously. If its first attempt raced a modem recovery,
+# wait for that attempt to finish and retry the platform bind once only.
+n=0
+while [ "$n" -lt 20 ] && [ ! -e /sys/class/net/wlan0 ]; do
+    sleep 2
+    n=$((n+1))
+done
+if [ ! -e /sys/class/net/wlan0 ] &&
+   [ -L /sys/bus/platform/devices/18800000.wifi/driver ] &&
+   [ -w /sys/bus/platform/drivers/ath10k_snoc/unbind ] &&
+   [ -w /sys/bus/platform/drivers/ath10k_snoc/bind ]; then
+    echo 'POLARIS 7.2.8: retrying Wi-Fi probe after firmware services settled'
+    echo 18800000.wifi >/sys/bus/platform/drivers/ath10k_snoc/unbind
+    sleep 2
+    echo 18800000.wifi >/sys/bus/platform/drivers/ath10k_snoc/bind
 fi

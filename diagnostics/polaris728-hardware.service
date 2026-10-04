@@ -7,7 +7,7 @@ ConditionKernelCommandLine=polaris.autostart=1
 Type=oneshot
 RemainAfterExit=yes
 KillMode=process
-TimeoutStartSec=180
+TimeoutStartSec=240
 ExecStart=/usr/local/sbin/polaris728-hardware-start
 
 [Install]

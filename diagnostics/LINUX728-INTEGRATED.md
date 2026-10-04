@@ -103,3 +103,23 @@ These checks establish device detection and cellular packet data. They do
 not establish that the kernel is stable under heavy applications. Previous
 6.1 and 7.2.8 boots froze when opening Clash, ChatGPT or QQ. Keep using
 `fastboot boot` and preserve the 6.1 recovery until that case is resolved.
+
+## First automatic read-only boot on 2026-10-04
+
+The automatic RAM-overlay image entered Ubuntu without serial intervention.
+GNOME and touch worked, the rootfs remained mounted `ro,norecovery`, the
+7.2.8 hardware service completed, and ALSA, Bluetooth HCI and FD630 render
+node appeared. The early modem start raced ModemManager and caused two modem
+remoteproc recoveries. During that recovery, ath10k's first firmware probe
+timed out, leaving no `wlan0`. Once the modem settled, a single platform
+driver unbind/bind created `wlan0`, which connected to the saved 2.4 GHz
+network. The sole present SIM was provisioned automatically, but the initial
+LTE mode request ran before ModemManager exposed a modem. Repeating the LTE
+mode request later registered on China Telecom and connected CTNET. The
+phone stayed responsive for more than six minutes with no RCU stall in the
+live kernel log; this is not an application stress result.
+
+The next automatic candidate stops ModemManager before launching Qualcomm
+firmware services, waits for a modem before setting LTE preference, and
+retries Wi-Fi once only if the first asynchronous probe did not create
+`wlan0`. It remains a RAM-only `fastboot boot` candidate.
