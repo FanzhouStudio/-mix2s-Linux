@@ -50,6 +50,7 @@ done
 cp "$artifact_dir/kernel-lockup-trace.config" "$out_dir/.config"
 "$src_dir/scripts/config" --file "$out_dir/.config" \
   --enable SOUND --enable SND --enable SND_SOC --enable SND_SOC_QCOM \
+  --enable QUOTA --enable QFMT_V2 \
   --enable QCOM_APR --enable QCOM_PD_MAPPER \
   --enable SLIMBUS --enable SLIM_QCOM_NGD_CTRL \
   --enable SOUNDWIRE --enable SOUNDWIRE_QCOM \
@@ -58,7 +59,7 @@ cp "$artifact_dir/kernel-lockup-trace.config" "$out_dir/.config"
   --module SND_SOC_TAS2559 \
   --module RESET_QCOM_PDC --module QCOM_RMTFS_MEM --module QCOM_IPA
 make -s -C "$src_dir" O="$out_dir" ARCH=arm64 LLVM=1 olddefconfig
-for symbol in SOUND SND SND_SOC SND_SOC_QCOM QCOM_APR QCOM_PD_MAPPER \
+for symbol in QUOTA QFMT_V2 SOUND SND SND_SOC SND_SOC_QCOM QCOM_APR QCOM_PD_MAPPER \
   SLIMBUS SLIM_QCOM_NGD_CTRL SOUNDWIRE SOUNDWIRE_QCOM \
   MFD_WCD934X SND_SOC_WCD934X SND_SOC_SDM845; do
   grep -Fqx "CONFIG_${symbol}=y" "$out_dir/.config" || {
