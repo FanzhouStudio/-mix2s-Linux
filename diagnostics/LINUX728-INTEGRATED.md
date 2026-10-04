@@ -132,3 +132,17 @@ request after roughly two minutes registered on China Telecom and connected
 CTNET. The next candidate waits for registration and retries the same mode
 request once after the modem has settled. The panel still logs DSI command
 timeouts when turning the display off; wake behavior needs separate checking.
+
+The user confirmed that the second automatic boot reached GNOME with working
+touch and screen keyboard, and that the volume-key screen wake was responsive.
+At about 11 minutes of uptime, opening and operating Clash Verge again froze
+the entire phone. The USB ACM gadget remained enumerated on Ubuntu-Max, but
+the serial shell stopped answering; the last serial output preceded the
+reported freeze. Wi-Fi did not answer a ping. Before the freeze, the rootfs
+and firmware partitions were still read-only, both Wi-Fi and China Telecom
+data were connected, and the PipeWire built-in speaker sink existed. The
+kernel log showed DSI display-off timeouts but no RCU stall, GPU/SMMU fault,
+or storage error. There is no post-freeze CPU backtrace, so this trial does
+not identify the subsystem that locked up. The revised candidate with one
+delayed LTE retry was built after this boot and remains untested. Keep the
+installed 6.1 recovery; do not flash this 7.2.8 RAM-overlay image.
