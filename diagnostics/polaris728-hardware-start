@@ -30,3 +30,23 @@ if [ ! -e /sys/class/net/wlan0 ] &&
     sleep 2
     echo 18800000.wifi >/sys/bus/platform/drivers/ath10k_snoc/bind
 fi
+
+# The SIM session and LTE mode may be accepted before the modem can register.
+# On two RAM boots, repeating the same mode request after firmware settled
+# completed registration. Never loop indefinitely or reset the modem here.
+modem=$(mmcli -L 2>/dev/null | sed -n 's@.*/Modem/\([0-9][0-9]*\).*@\1@p' | head -n 1)
+if [ -n "$modem" ]; then
+    n=0
+    while [ "$n" -lt 9 ]; do
+        if mmcli -m "$modem" --output-keyvalue 2>/dev/null |
+           grep -Eq '^modem\.3gpp\.registration-state[[:space:]]*:[[:space:]]*(home|roaming)$'; then
+            break
+        fi
+        sleep 10
+        n=$((n+1))
+    done
+    if [ "$n" -ge 9 ]; then
+        echo 'POLARIS 7.2.8: retrying LTE preference after modem settled'
+        mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g || true
+    fi
+fi

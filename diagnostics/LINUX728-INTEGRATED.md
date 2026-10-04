@@ -123,3 +123,12 @@ The next automatic candidate stops ModemManager before launching Qualcomm
 firmware services, waits for a modem before setting LTE preference, and
 retries Wi-Fi once only if the first asynchronous probe did not create
 `wlan0`. It remains a RAM-only `fastboot boot` candidate.
+
+On the second automatic boot, Wi-Fi initialized and connected on its first
+probe, with no modem fatal recovery. GNOME, touch and the screen keyboard
+worked. The SIM preparation and initial LTE mode setting succeeded, but
+registration alternated between `idle` and `searching`. Repeating that mode
+request after roughly two minutes registered on China Telecom and connected
+CTNET. The next candidate waits for registration and retries the same mode
+request once after the modem has settled. The panel still logs DSI command
+timeouts when turning the display off; wake behavior needs separate checking.
