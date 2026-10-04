@@ -25,6 +25,8 @@ FIRMWARE_HASHES = {
 }
 ZAP_FIRMWARE = ART / "firmware/polaris/a630_zap.mbn"
 ZAP_FIRMWARE_HASH = "c0a830808c7ae886e5a5b6dec48afb9c9805d0579d9cac498ebc36b8b06bedde"
+OVERLAY_MODULE = OUT / "overlay.ko"
+OVERLAY_MODULE_HASH = "0086468d1577134c5fc98723954f18f9019815301bf8a4d8abb899740cee9c1a"
 IMAGE = OUT / "polaris-linux728-readonly-diag.img"
 MANIFEST = OUT / "readonly-diag-manifest.json"
 
@@ -62,7 +64,11 @@ def main() -> None:
                         help="Delay Polaris MSM DRM by 45 seconds so USB ACM starts first")
     parser.add_argument("--after-attach", action="store_true",
                         help="Delay DRM 5 seconds and map XBL only after IOMMU attach")
+    parser.add_argument("--ubuntu-overlay", action="store_true",
+                        help="Prepare manual Ubuntu read-only root with RAM overlay on the proven after-attach kernel")
     args = parser.parse_args()
+    if args.ubuntu_overlay and not args.after_attach:
+        parser.error("The Ubuntu overlay requires the after-attach kernel")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -119,8 +125,14 @@ def main() -> None:
         add(directory, stat.S_IFDIR | 0o755)
     add("bin/busybox", stat.S_IFREG | 0o755, busybox)
     add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
+    init_name = "init-linux728-overlay" if args.ubuntu_overlay else "init-linux728-readonly"
     add("init", stat.S_IFREG | 0o755,
-        (ROOT / "diagnostics/init-linux728-readonly").read_bytes())
+        (ROOT / "diagnostics" / init_name).read_bytes())
+    if args.ubuntu_overlay:
+        if "CONFIG_OVERLAY_FS=m\n" not in config:
+            raise ValueError("OverlayFS module is not enabled in the selected kernel")
+        add("lib/modules/7.2.8-polaris/diag/overlay.ko", stat.S_IFREG | 0o644,
+            read_verified(OVERLAY_MODULE, OVERLAY_MODULE_HASH))
     for name, digest in FIRMWARE_HASHES.items():
         add("lib/firmware/qcom/" + name, stat.S_IFREG | 0o644,
             read_verified(FIRMWARE / name, digest))
@@ -156,7 +168,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-xbl-iommu-after-attach.img"
+    image_name = ("polaris-linux728-ubuntu-overlay-diag.img"
+                  if args.ubuntu_overlay else
+                  "polaris-linux728-xbl-iommu-after-attach.img"
                   if args.after_attach else
                   "polaris-linux728-xbl-iommu-serial-first.img"
                   if args.serial_first else
@@ -166,7 +180,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("xbl-iommu-after-attach-manifest.json"
+    manifest_name = ("ubuntu-overlay-diag-manifest.json"
+                     if args.ubuntu_overlay else
+                     "xbl-iommu-after-attach-manifest.json"
                      if args.after_attach else
                      "xbl-iommu-serial-first-manifest.json"
                      if args.serial_first else
@@ -186,8 +202,9 @@ def main() -> None:
         "ramdisk_sha256": hashlib.sha256(ramdisk).hexdigest(),
         "image_sha256": hashlib.sha256(image).hexdigest(),
         "image_bytes": len(image),
-        "storage_mounts": False,
+        "storage_mounts": "userdata ext4 ro,noload; RAM overlay after manual activation" if args.ubuntu_overlay else False,
         "partition_flash": False,
+        "ubuntu_overlay_manual_activation": args.ubuntu_overlay,
         "zap_firmware": args.include_zap_firmware,
         "legacy_dpu_planes": args.legacy_dpu_planes,
         "xbl_framebuffer_reserved": args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach,
