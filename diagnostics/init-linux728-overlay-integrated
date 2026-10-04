@@ -78,13 +78,14 @@ setup_usb() {
 usb_pid=$!
 
 (
-    while [ ! -e /run/start-ubuntu-overlay ]; do
+    while :; do
         {
             printf '\033[2J\033[H'
             echo 'POLARIS / LINUX 7.2.8'
             echo 'INIT: RAM OVERLAY DIAGNOSTIC'
             echo 'STORAGE: READ-ONLY; UBUNTU NOT STARTED'
             echo "ACM: $(cat /run/usb-status)"
+            echo "OVERLAY: $(cat /run/ubuntu-status)"
             echo "UPTIME: $(cut -d ' ' -f 1 /proc/uptime) seconds"
             echo 'Recent init messages:'
             tail -8 /run/init.log
@@ -112,9 +113,10 @@ mount_partition_ro() {
 }
 
 boot_ubuntu_overlay() {
-    if [ -c /dev/ttyGS0 ]; then
-        exec >/dev/ttyGS0 2>&1
-    fi
+    echo TRYING >/run/ubuntu-status
+    # Keep failures on the visible diagnostic screen even when USB cannot
+    # enumerate on the host. The screen worker follows this init log.
+    exec >>/run/init.log 2>&1
     echo 'OVERLAY: mounting vendor, modem, and Ubuntu root read-only'
     protect_blocks
     mount_partition_ro vendor ext4 ro,noload /run/vendor || return 1
@@ -213,6 +215,7 @@ while :; do
     if [ -e /run/start-ubuntu-overlay ]; then
         sleep 2
         boot_ubuntu_overlay
+        echo FAILED >/run/ubuntu-status
         echo 'Ubuntu overlay start failed; staying in RAM diagnostics'
         rm -f /run/start-ubuntu-overlay
     fi

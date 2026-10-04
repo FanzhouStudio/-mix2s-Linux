@@ -190,7 +190,7 @@ not required for reproduction. If it remains responsive, compare it with the
 already-failing visible Xwayland launch. Keep the test in a RAM boot and bound
 its runtime; a bound cannot terminate a process after a whole-SoC lockup.
 
-## Offscreen diagnostic candidate (not yet booted)
+## Offscreen diagnostic candidate (first RAM boot)
 
 `diagnostics/build-xvfb-offscreen-bundle.sh` downloads Ubuntu arm64 `xvfb`
 and `libunwind8`, checks their package SHA-256 hashes, and produces a
@@ -205,10 +205,24 @@ python3 diagnostics/build-linux728-readonly-diag.py \
 The output is
 `artifacts/linux728-polaris-candidate/polaris-linux728-integrated-auto-offscreen-diag.img`.
 The builder verifies the Xvfb bundle hash and stages it in `/tmp` on the
-phone before `switch_root`; it is never installed to userdata. As built on
-2026-10-04, the image is 23,117,824 bytes with SHA-256
+phone before `switch_root`; it is never installed to userdata. The first
+2026-10-04 build was 23,117,824 bytes with SHA-256
 `4e9238e21bdd4aa4be738cfd8620215a1ffc549f71aee11d99a3ac25c12c37c1`.
 Use only `fastboot boot`. After confirming GNOME, Wi-Fi and serial, unpack
 the bundle inside `/tmp` and launch Clash on a non-networked Xvfb display
 with software GL. This isolates the app and WebKit from the physical DRM
 scanout path; it may still freeze the phone, so preserve the 6.1 recovery.
+
+On 2026-10-04, `fastboot boot` accepted this image. The phone displayed the
+7.2.8 RAM overlay diagnostic screen with `ACM: READY` and
+`ACM bound: a600000.usb`, but the Ubuntu-Max guest saw no new USB device and
+VMware reported that it could not recognize the device. The photographed
+screen at approximately 77 seconds uptime still said `UBUNTU NOT STARTED`;
+its final visible kernel message was `dwc3 a600000.usb: remote wakeup not
+configured`. No Xvfb or Clash process has been launched in this boot.
+The user's later screen state was still pending when this observation was
+recorded. Do not treat the visible `ACM: READY` as proof of host enumeration.
+The next build keeps screen diagnostics active through a failed Ubuntu overlay
+attempt and writes its errors to `/run/init.log` for display, instead of
+redirecting them to an unenumerated USB serial port. Its SHA-256 is
+`1820f15afd40b23e414599b4de31ac47904aa1c0a849100d36e79ff28f4e0e95`.
