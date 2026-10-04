@@ -52,8 +52,17 @@ temporary boot on 2026-10-05 reached Ubuntu GNOME with `/dev/sda21` mounted
 `rw,noatime`; USB ACM, Wi-Fi, GPU render node, and PipeWire speaker sink were
 present. The 7.2.8 module and audio bind mounts were active, and the runtime
 generator masked 6.1-specific services. This is a partial acceptance only:
-touch/wake user checks, 6.1 recovery rollback, and normal boot after a flash
-have not yet been confirmed. No partition has been flashed.
+touch, keyboard, and wake were then confirmed by the user. Reboot into the
+unchanged 6.1 recovery reached GNOME and mounted the same `/dev/sda21` RW;
+the 7.2.8 service was inactive and 6.1-specific units were not runtime-masked.
+
+On 2026-10-05 `fastboot flash boot` accepted this exact image. The device
+reported `product: polaris`, `unlocked: yes`, and a 64 MiB boot partition;
+Fastboot reported both sending and writing `OKAY`. `recovery`, `userdata`,
+`dtbo`, and `vbmeta` were not flashed. A subsequent ordinary reboot reached
+Ubuntu's `graphical.target` under the installed 7.2.8 boot image, but the
+on-screen desktop/touch result and the post-flash 6.1 recovery key path remain
+to be confirmed by the user.
 
 Its initramfs mounts `vendor` and `modem` read-only and the already prepared
 Ubuntu `userdata` ext4 read-write. It checks the Ubuntu root marker and
