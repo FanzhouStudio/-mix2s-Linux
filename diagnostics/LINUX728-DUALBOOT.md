@@ -60,9 +60,10 @@ On 2026-10-05 `fastboot flash boot` accepted this exact image. The device
 reported `product: polaris`, `unlocked: yes`, and a 64 MiB boot partition;
 Fastboot reported both sending and writing `OKAY`. `recovery`, `userdata`,
 `dtbo`, and `vbmeta` were not flashed. A subsequent ordinary reboot reached
-Ubuntu's `graphical.target` under the installed 7.2.8 boot image, but the
-on-screen desktop/touch result and the post-flash 6.1 recovery key path remain
-to be confirmed by the user.
+Ubuntu's `graphical.target` under the installed 7.2.8 boot image. The user
+confirmed the desktop and touch work after the normal boot. Screen keyboard
+and wake worked in the preceding temporary boot. The post-flash 6.1 recovery
+key path remains to be checked separately.
 
 Its initramfs mounts `vendor` and `modem` read-only and the already prepared
 Ubuntu `userdata` ext4 read-write. It checks the Ubuntu root marker and
@@ -94,3 +95,29 @@ changes made in either kernel are visible to the other kernel.
 Do not run Clash Verge, ChatGPT, QQ, or browser stress during the first
 persistent boot. Their whole-device freeze remains unresolved on both
 kernels.
+
+## 2026-10-05: application removal and compressed swap
+
+The installed ChatGPT and QQ builds were portable SquashFS images, not APT
+packages. Their mount services, launchers, icons, and images were removed from
+the shared Ubuntu root. User settings under `/home/polaris` and downloaded
+installers under `/home/polaris/下载` were left in place.
+
+The running 7.2.8 kernel lacked built-in zram. Matching `zsmalloc.ko` and
+`zram.ko` were built from the exact 7.2.8-polaris kernel configuration and
+installed on the phone under
+`/usr/local/lib/polaris-zram/7.2.8-polaris/`. Copies are in
+`diagnostics/modules/7.2.8-polaris/`. The setup script and systemd unit in
+this directory are installed as `/usr/local/sbin/polaris-zram-setup` and
+`/etc/systemd/system/polaris-zram.service`. The service applies only to
+`7.2.8-polaris`; the 6.1 recovery kernel does not load these modules.
+
+The service creates a **6 GiB zram swap device** with LZ4, swap priority
+100, `vm.swappiness=150`, and `vm.page-cluster=0`. This favors compressed RAM
+swap without writing swap pages to userdata. Six GiB is the device's logical
+capacity, not additional physical RAM. After a normal reboot, the phone
+reported kernel `7.2.8-polaris`, `/dev/zram0` active at 6 GiB and priority
+100, both sysctls at their configured values, `polaris-zram.service` enabled
+and active, and GNOME with working touch. The phone root remained
+`/dev/sda21` mounted read-write. No application stress test was run; zram does
+not establish a fix for the known whole-device freezes.

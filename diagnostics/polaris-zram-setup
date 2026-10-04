@@ -1,0 +1,31 @@
+#!/bin/sh
+# Use compressed memory for 7.2.8 swap; avoid userdata swap writes.
+set -eu
+
+[ "$(uname -r)" = 7.2.8-polaris ] || exit 0
+module_dir=/usr/local/lib/polaris-zram/7.2.8-polaris
+
+[ -d /sys/module/zsmalloc ] || /usr/sbin/insmod "$module_dir/zsmalloc.ko"
+[ -d /sys/module/zram ] || /usr/sbin/insmod "$module_dir/zram.ko"
+
+i=0
+while [ ! -b /dev/zram0 ] && [ "$i" -lt 20 ]; do
+    sleep 0.1
+    i=$((i + 1))
+done
+[ -b /dev/zram0 ] || { echo 'zram0 device not found' >&2; exit 1; }
+
+if ! grep -q '^/dev/zram0[[:space:]]' /proc/swaps; then
+    bytes=$(cat /sys/block/zram0/disksize)
+    if [ "$bytes" -eq 0 ]; then
+        echo lz4 >/sys/block/zram0/comp_algorithm
+        echo 6442450944 >/sys/block/zram0/disksize
+    elif [ "$bytes" -ne 6442450944 ]; then
+        echo "unexpected zram0 size: $bytes" >&2
+        exit 1
+    fi
+    /usr/sbin/mkswap /dev/zram0 >/dev/null
+    /usr/sbin/swapon -p 100 /dev/zram0
+fi
+
+/usr/sbin/sysctl -w vm.swappiness=150 vm.page-cluster=0 >/dev/null

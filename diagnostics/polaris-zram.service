@@ -1,0 +1,12 @@
+[Unit]
+Description=Polaris 7.2.8 6 GiB compressed RAM swap
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecCondition=/bin/sh -c 'test "$(uname -r)" = 7.2.8-polaris'
+ExecStart=/usr/local/sbin/polaris-zram-setup
+
+[Install]
+WantedBy=multi-user.target
