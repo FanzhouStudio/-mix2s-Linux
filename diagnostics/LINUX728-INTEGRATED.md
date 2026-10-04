@@ -146,3 +146,20 @@ or storage error. There is no post-freeze CPU backtrace, so this trial does
 not identify the subsystem that locked up. The revised candidate with one
 delayed LTE retry was built after this boot and remains untested. Keep the
 installed 6.1 recovery; do not flash this 7.2.8 RAM-overlay image.
+
+## Third automatic read-only boot on 2026-10-04
+
+The image with one delayed LTE registration retry booted GNOME with working
+touch. Its first ath10k firmware probe failed, but the service's single
+unbind/bind retry created `wlan0` and NetworkManager reconnected to the saved
+2.4 GHz network. ModemManager later reached `home` registration and the saved
+China Telecom CTNET connection became active without a manual command. The
+bringup service exited successfully.
+
+To separate the proxy engine from its GUI, `verge-mihomo` ran for 15 seconds
+with a temporary local-only configuration and exited when the diagnostic
+timeout sent a signal. A second headless run served 100/100 HTTP requests
+through its loopback proxy to a loopback HTTP server; the core remained alive
+and the desktop stayed responsive. This checks basic core startup and local
+proxy traffic only. It does not cover the user's actual proxy configuration,
+remote network traffic, or the Clash Verge graphical interface.
