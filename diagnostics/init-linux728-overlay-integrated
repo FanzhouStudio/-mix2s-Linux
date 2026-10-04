@@ -18,6 +18,10 @@ cat /proc/cmdline
 echo 0 >/proc/sys/kernel/panic
 echo WAITING >/run/usb-status
 echo WAITING >/run/ubuntu-status
+autostart=no
+case " $(cat /proc/cmdline) " in
+    *' polaris.autostart=1 '*) autostart=yes ;;
+esac
 
 protect_blocks() {
     for b in /sys/class/block/*; do
@@ -108,7 +112,9 @@ mount_partition_ro() {
 }
 
 boot_ubuntu_overlay() {
-    exec >/dev/ttyGS0 2>&1
+    if [ -c /dev/ttyGS0 ]; then
+        exec >/dev/ttyGS0 2>&1
+    fi
     echo 'OVERLAY: mounting vendor, modem, and Ubuntu root read-only'
     protect_blocks
     mount_partition_ro vendor ext4 ro,noload /run/vendor || return 1
@@ -145,6 +151,13 @@ boot_ubuntu_overlay() {
     chmod 0755 /newroot/usr/local/sbin/polaris-sim-prepare728 || return 1
     mkdir -p /newroot/etc/wireplumber/wireplumber.conf.d
     cp /etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf /newroot/etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf || return 1
+    if [ "$autostart" = yes ]; then
+        cp /usr/local/sbin/polaris728-hardware-start /newroot/usr/local/sbin/polaris728-hardware-start || return 1
+        chmod 0755 /newroot/usr/local/sbin/polaris728-hardware-start || return 1
+        cp /etc/systemd/system/polaris728-hardware.service /newroot/etc/systemd/system/polaris728-hardware.service || return 1
+        mkdir -p /newroot/etc/systemd/system/multi-user.target.wants
+        ln -sfn ../polaris728-hardware.service /newroot/etc/systemd/system/multi-user.target.wants/polaris728-hardware.service || return 1
+    fi
     mkdir -p /newroot/lib/firmware/qcom/sdm845/polaris
     for file in /run/modem/image/*; do
         [ -f "$file" ] || continue
@@ -179,6 +192,18 @@ boot_ubuntu_overlay() {
 }
 
 trap ':' HUP INT TERM
+if [ "$autostart" = yes ]; then
+    (
+        n=0
+        while [ "$n" -lt 60 ] && [ "$(cat /run/usb-status)" != READY ]; do
+            sleep 1
+            n=$((n+1))
+        done
+        sleep 8
+        echo 'AUTO: starting Ubuntu read-only RAM overlay' >>/run/init.log
+        touch /run/start-ubuntu-overlay
+    ) &
+fi
 while :; do
     protect_blocks
     if [ -e /run/start-ubuntu-overlay ]; then

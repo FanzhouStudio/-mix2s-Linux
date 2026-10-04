@@ -34,6 +34,24 @@ sudo polaris-integrated-bringup audio
 sudo polaris-integrated-bringup cellular
 ```
 
+## Automatic boot candidate
+
+Build the separate automatic candidate with:
+
+```sh
+python3 diagnostics/build-linux728-readonly-diag.py \
+  --after-attach --ubuntu-overlay --overlay-vendor --integrated --integrated-auto
+```
+
+`artifacts/linux728-polaris-candidate/polaris-linux728-integrated-auto-overlay-diag.img`
+waits for the diagnostic USB gadget, then automatically mounts vendor, modem
+and userdata read-only, creates a RAM upper layer, and starts Ubuntu. A
+systemd one-shot service brings up the modem services, sound and cellular
+data in sequence. This image remains **fastboot boot only**. It is a cold-boot
+workflow check before creating a recovery image that mounts userdata
+read-write. Early mount failures leave the initramfs diagnostic shell
+available. Power cycling returns to the installed 6.1 recovery.
+
 `core` loads the RMTFS and PDC reset modules, starts the Qualcomm firmware
 servers and modem remote processor, allowing deferred Wi-Fi probes. `audio`
 loads TAS2559 and starts ADSP. `cellular` loads RMNET and IPA for packet data. This does

@@ -74,6 +74,8 @@ def main() -> None:
                         help="Use the RAM-only persistent log and lockup-detector variant")
     parser.add_argument("--integrated", action="store_true",
                         help="Build the RAM-only 7.2.8 Wi-Fi, modem, audio and GPU candidate")
+    parser.add_argument("--integrated-auto", action="store_true",
+                        help="Automatically start the integrated Ubuntu RAM overlay and hardware services")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
@@ -89,6 +91,8 @@ def main() -> None:
         parser.error("Integrated hardware requires the vendor-first Ubuntu overlay")
     if args.integrated and (args.pstore_trace or args.lockup_trace):
         parser.error("Integrated hardware and tracing variants are separate")
+    if args.integrated_auto and not args.integrated:
+        parser.error("Automatic integrated boot requires --integrated")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -190,6 +194,11 @@ def main() -> None:
             add("etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf",
                 stat.S_IFREG | 0o644,
                 (ROOT / "diagnostics/alsa-ucm/90-polaris-audio.conf").read_bytes())
+            if args.integrated_auto:
+                add("usr/local/sbin/polaris728-hardware-start", stat.S_IFREG | 0o755,
+                    (ROOT / "diagnostics/polaris728-hardware-start").read_bytes())
+                add("etc/systemd/system/polaris728-hardware.service", stat.S_IFREG | 0o644,
+                    (ROOT / "diagnostics/polaris728-hardware.service").read_bytes())
         else:
             add("lib/modules/7.2.8-polaris/diag/overlay.ko", stat.S_IFREG | 0o644,
                 read_verified(OVERLAY_MODULE, OVERLAY_MODULE_HASH))
@@ -218,6 +227,8 @@ def main() -> None:
         cmdline += b" msm.dpu_use_virtual_planes=0"
     if args.lockup_trace or args.pstore_trace:
         cmdline += b" irqchip.gicv3_pseudo_nmi=1 nmi_watchdog=1 watchdog_thresh=10"
+    if args.integrated_auto:
+        cmdline += b" polaris.autostart=1"
     if len(cmdline) > 512:
         raise ValueError("Diagnostic kernel command line exceeds boot image field")
     header[64:576] = cmdline.ljust(512, b"\0")
@@ -230,7 +241,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-integrated-overlay-diag.img"
+    image_name = ("polaris-linux728-integrated-auto-overlay-diag.img"
+                  if args.integrated_auto else
+                  "polaris-linux728-integrated-overlay-diag.img"
                   if args.integrated else
                   "polaris-linux728-pstore-trace-overlay-diag.img"
                   if args.pstore_trace else
@@ -250,7 +263,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("integrated-overlay-diag-manifest.json"
+    manifest_name = ("integrated-auto-overlay-diag-manifest.json"
+                     if args.integrated_auto else
+                     "integrated-overlay-diag-manifest.json"
                      if args.integrated else
                      "pstore-trace-overlay-diag-manifest.json"
                      if args.pstore_trace else
@@ -280,12 +295,16 @@ def main() -> None:
         "ramdisk_sha256": hashlib.sha256(ramdisk).hexdigest(),
         "image_sha256": hashlib.sha256(image).hexdigest(),
         "image_bytes": len(image),
-        "storage_mounts": "userdata ext4 ro,noload; RAM overlay after manual activation" if args.ubuntu_overlay else False,
+        "storage_mounts": ("userdata ext4 ro,noload; automatic RAM overlay"
+                            if args.integrated_auto else
+                            "userdata ext4 ro,noload; RAM overlay after manual activation"
+                            if args.ubuntu_overlay else False),
         "partition_flash": False,
-        "ubuntu_overlay_manual_activation": args.ubuntu_overlay,
+        "ubuntu_overlay_manual_activation": args.ubuntu_overlay and not args.integrated_auto,
         "vendor_firmware_mounted_ro_before_ubuntu": args.overlay_vendor,
         "modem_firmware_mounted_ro_before_ubuntu": args.integrated,
         "integrated_hardware_candidate": args.integrated,
+        "automatic_ram_overlay_boot": args.integrated_auto,
         "lockup_trace": args.lockup_trace,
         "pstore_trace": args.pstore_trace,
         "zap_firmware": args.include_zap_firmware,

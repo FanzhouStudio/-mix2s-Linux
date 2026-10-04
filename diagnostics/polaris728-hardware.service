@@ -1,0 +1,14 @@
+[Unit]
+Description=Polaris Linux 7.2.8 hardware bringup
+After=systemd-udev-trigger.service
+ConditionKernelCommandLine=polaris.autostart=1
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+KillMode=process
+TimeoutStartSec=180
+ExecStart=/usr/local/sbin/polaris728-hardware-start
+
+[Install]
+WantedBy=multi-user.target

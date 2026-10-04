@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs only in the 7.2.8 RAM overlay. Each stage can be inspected in journalctl.
+set -eu
+[ "$(uname -r)" = 7.2.8-polaris ] || exit 0
+/usr/local/sbin/polaris-integrated-bringup core
+if ! /usr/local/sbin/polaris-integrated-bringup audio; then
+    echo 'POLARIS 7.2.8: audio bringup failed; continuing with networking' >&2
+fi
+if ! /usr/local/sbin/polaris-integrated-bringup cellular; then
+    echo 'POLARIS 7.2.8: cellular bringup failed' >&2
+fi
