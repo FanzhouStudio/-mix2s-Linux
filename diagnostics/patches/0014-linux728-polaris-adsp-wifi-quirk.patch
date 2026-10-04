@@ -1,0 +1,16 @@
+--- a/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-xiaomi-polaris.dts
+@@ -706,5 +706,13 @@
+ 	qcom,micbias4-microvolt = <2700000>;
+ };
+ 
++/* The running 6.1 device tree enables this remoteproc for QDSP6 audio. */
++&adsp_pas {
++	firmware-name = "qcom/sdm845/polaris/adsp.mbn";
++	status = "okay";
++};
++
+ &wifi {
++	/* Polaris WLAN firmware rejects the newer host capability message. */
++	qcom,snoc-host-cap-skip-quirk;
+ 	vdd-0.8-cx-mx-supply = <&vreg_l5a_0p8>;

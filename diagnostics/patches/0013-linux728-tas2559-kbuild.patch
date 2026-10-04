@@ -1,0 +1,24 @@
+--- a/sound/soc/codecs/Kconfig
++++ b/sound/soc/codecs/Kconfig
+@@ -2164,6 +2164,10 @@
+ 	  TAC5682 and TAS2883. To compile this driver as a module, choose
+ 	  M here: the module will be called snd-soc-tac5xx2.
+ 
++config SND_SOC_TAS2559
++	tristate "Texas Instruments TAS2559 speaker amplifier (Polaris downstream port)"
++	depends on I2C
++
+ config SND_SOC_TAS2552
+ 	tristate "Texas Instruments TAS2552 Mono Audio amplifier"
+ 	depends on I2C
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -753,6 +753,8 @@
+ obj-$(CONFIG_SND_SOC_STAC9766)	+= snd-soc-stac9766.o
+ obj-$(CONFIG_SND_SOC_STI_SAS)	+= snd-soc-sti-sas.o
+ obj-$(CONFIG_SND_SOC_TAC5XX2_SDW)	+= snd-soc-tac5xx2-sdw.o
++snd-soc-tas2559-objs := tas2559.o
++obj-$(CONFIG_SND_SOC_TAS2559)	+= snd-soc-tas2559.o
+ obj-$(CONFIG_SND_SOC_TAS2552)	+= snd-soc-tas2552.o
+ obj-$(CONFIG_SND_SOC_TAS2562)	+= snd-soc-tas2562.o
+ obj-$(CONFIG_SND_SOC_TAS2764)	+= snd-soc-tas2764.o

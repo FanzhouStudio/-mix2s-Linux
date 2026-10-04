@@ -1,0 +1,105 @@
+#!/bin/sh
+# Run one stage at a time from the 7.2.8 USB serial console.
+# This script is copied into the RAM upper layer; it does not change userdata.
+set -eu
+module_dir=/lib/modules/7.2.8-polaris/diag
+wifi_tools=/usr/lib/polaris-wifi
+
+load_module() {
+    name=$1
+    file=$2
+    [ -d "/sys/module/$name" ] || insmod "$module_dir/$file"
+}
+
+start_qcom_tool() {
+    name=$1
+    shift
+    pidfile="/run/polaris-728-$name.pid"
+    if [ -r "$pidfile" ] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+        return 0
+    fi
+    "$wifi_tools/ld-linux-aarch64.so.1" --library-path "$wifi_tools" \
+        "$wifi_tools/$name" "$@" >"/run/polaris-728-$name.log" 2>&1 &
+    echo $! >"$pidfile"
+}
+
+start_remoteproc() {
+    wanted=$1
+    for r in /sys/class/remoteproc/remoteproc*; do
+        [ -r "$r/name" ] || continue
+        case "$(cat "$r/name")" in
+            *"$wanted"*)
+                [ "$(cat "$r/state")" = running ] || echo start >"$r/state"
+                return 0
+                ;;
+        esac
+    done
+    echo "Remote processor $wanted is not registered" >&2
+    return 1
+}
+
+status() {
+    printf 'kernel: '; uname -r
+    printf 'GPU render node: '
+    [ -e /dev/dri/renderD128 ] && echo /dev/dri/renderD128 || echo absent
+    printf 'sound cards:\n'; cat /proc/asound/cards 2>/dev/null || true
+    printf 'network devices:\n'; ls /sys/class/net
+    printf 'Bluetooth controllers:\n'; ls /sys/class/bluetooth 2>/dev/null || true
+    printf 'remote processors:\n'
+    for r in /sys/class/remoteproc/remoteproc*; do
+        [ -e "$r" ] || continue
+        printf '%s %s %s\n' "${r##*/}" "$(cat "$r/name")" "$(cat "$r/state")"
+    done
+    printf 'matching modules:\n'; grep -E '^(reset_qcom_pdc|rmtfs_mem|ipa|snd_soc_tas2559) ' /proc/modules || true
+    printf 'recent driver messages:\n'
+    dmesg | grep -Ei 'pdc reset|remoteproc|ath10k|wlan0|ipa|snd|tas2559|a630|gmu|firmware' | tail -n 45 || true
+}
+
+case "${1:-status}" in
+    core)
+        load_module rmtfs_mem rmtfs_mem.ko
+        load_module reset_qcom_pdc reset-qcom-pdc.ko
+        mkdir -p /dev/disk/by-partlabel /tmp/tqftpserv
+        for event in /sys/class/block/*/uevent; do
+            [ -r "$event" ] || continue
+            partname=$(sed -n 's/^PARTNAME=//p' "$event")
+            [ -n "$partname" ] || continue
+            block=${event%/uevent}
+            ln -sfn "/dev/${block##*/}" "/dev/disk/by-partlabel/$partname"
+        done
+        start_qcom_tool rmtfs -r -P -v
+        start_qcom_tool tqftpserv
+        start_qcom_tool pd-mapper
+        start_remoteproc 4080000.remoteproc
+        sleep 5
+        status
+        ;;
+    audio)
+        load_module snd_soc_tas2559 snd-soc-tas2559.ko
+        start_remoteproc adsp
+        sleep 3
+        status
+        ;;
+    cellular)
+        load_module rmnet rmnet.ko
+        load_module ipa ipa.ko
+        systemctl stop ModemManager.service
+        if ! /usr/local/sbin/polaris-sim-prepare728; then
+            echo 'SIM preparation failed safely; restarting ModemManager without retry' >&2
+        fi
+        systemctl restart ModemManager.service
+        sleep 3
+        modem=$(mmcli -L 2>/dev/null | sed -n 's@.*/Modem/\([0-9][0-9]*\).*@\1@p' | head -n 1)
+        if [ -n "$modem" ]; then
+            mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g || true
+        fi
+        status
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo 'Usage: polaris-integrated-bringup {core|audio|cellular|status}' >&2
+        exit 2
+        ;;
+esac

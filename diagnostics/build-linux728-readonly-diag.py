@@ -72,6 +72,8 @@ def main() -> None:
                         help="Use the pseudo-NMI and lockup-detector variant of the after-attach kernel")
     parser.add_argument("--pstore-trace", action="store_true",
                         help="Use the RAM-only persistent log and lockup-detector variant")
+    parser.add_argument("--integrated", action="store_true",
+                        help="Build the RAM-only 7.2.8 Wi-Fi, modem, audio and GPU candidate")
     args = parser.parse_args()
     if args.ubuntu_overlay and not args.after_attach:
         parser.error("The Ubuntu overlay requires the after-attach kernel")
@@ -83,6 +85,10 @@ def main() -> None:
         parser.error("Pstore tracing requires the vendor-first Ubuntu overlay")
     if args.pstore_trace and args.lockup_trace:
         parser.error("Select only one tracing variant")
+    if args.integrated and not (args.after_attach and args.ubuntu_overlay and args.overlay_vendor):
+        parser.error("Integrated hardware requires the vendor-first Ubuntu overlay")
+    if args.integrated and (args.pstore_trace or args.lockup_trace):
+        parser.error("Integrated hardware and tracing variants are separate")
     if args.after_attach and (args.legacy_dpu_planes or args.include_zap_firmware or
                               args.reserve_xbl_framebuffer or args.xbl_iommu_map or
                               args.serial_first):
@@ -96,13 +102,15 @@ def main() -> None:
         parser.error("Test legacy planes and XBL reservation separately")
     boot = read_verified(SOURCE, SOURCE_HASH)
     busybox = read_verified(BUSYBOX, BUSYBOX_HASH)
-    kernel_name = ("Image-xbl-iommu-pstore-trace.gz" if args.pstore_trace else
+    kernel_name = ("Image-xbl-iommu-integrated.gz" if args.integrated else
+                   "Image-xbl-iommu-pstore-trace.gz" if args.pstore_trace else
                    "Image-xbl-iommu-lockup-trace.gz" if args.lockup_trace else
                    "Image-xbl-iommu-after-attach.gz" if args.after_attach else
                    "Image-xbl-iommu-serial-first.gz" if args.serial_first else
                    "Image-xbl-iommu.gz" if args.xbl_iommu_map else "Image.gz")
     kernel = (OUT / kernel_name).read_bytes()
-    dtb_name = ("sdm845-xiaomi-polaris-xbl-pstore.dtb" if args.pstore_trace else
+    dtb_name = ("sdm845-xiaomi-polaris-integrated.dtb" if args.integrated else
+                "sdm845-xiaomi-polaris-xbl-pstore.dtb" if args.pstore_trace else
                 "sdm845-xiaomi-polaris-xbl-reserved.dtb"
                 if args.reserve_xbl_framebuffer or args.xbl_iommu_map or args.serial_first or args.after_attach
                 else "sdm845-xiaomi-polaris.dtb")
@@ -111,7 +119,8 @@ def main() -> None:
         raise ValueError("Selected DTB has no XBL framebuffer reservation")
     if args.pstore_trace and b"ramoops@9f800000" not in dtb:
         raise ValueError("Selected DTB has no reserved ramoops region")
-    config = (OUT / ("kernel-pstore-trace.config" if args.pstore_trace else
+    config = (OUT / ("kernel-integrated.config" if args.integrated else
+                     "kernel-pstore-trace.config" if args.pstore_trace else
                      "kernel-lockup-trace.config" if args.lockup_trace else
                      "kernel.config")).read_text()
     for option in ("SCSI_UFS_QCOM", "PHY_QCOM_QMP_UFS", "PHY_QCOM_QUSB2",
@@ -155,7 +164,8 @@ def main() -> None:
         add(directory, stat.S_IFDIR | 0o755)
     add("bin/busybox", stat.S_IFREG | 0o755, busybox)
     add("bin/sh", stat.S_IFLNK | 0o777, b"busybox")
-    init_name = ("init-linux728-overlay-vendor" if args.overlay_vendor else
+    init_name = ("init-linux728-overlay-integrated" if args.integrated else
+                 "init-linux728-overlay-vendor" if args.overlay_vendor else
                  "init-linux728-overlay" if args.ubuntu_overlay else
                  "init-linux728-readonly")
     add("init", stat.S_IFREG | 0o755,
@@ -163,8 +173,26 @@ def main() -> None:
     if args.ubuntu_overlay:
         if "CONFIG_OVERLAY_FS=m\n" not in config:
             raise ValueError("OverlayFS module is not enabled in the selected kernel")
-        add("lib/modules/7.2.8-polaris/diag/overlay.ko", stat.S_IFREG | 0o644,
-            read_verified(OVERLAY_MODULE, OVERLAY_MODULE_HASH))
+        if args.integrated:
+            module_dir = OUT / "modules-integrated"
+            for module_name in ("overlay.ko", "reset-qcom-pdc.ko", "rmtfs_mem.ko",
+                                "ipa.ko", "rmnet.ko", "snd-soc-tas2559.ko"):
+                module = module_dir / module_name
+                data = module.read_bytes()
+                if not data.startswith(b"\x7fELF"):
+                    raise ValueError(f"Invalid ELF module: {module}")
+                add("lib/modules/7.2.8-polaris/diag/" + module_name,
+                    stat.S_IFREG | 0o644, data)
+            add("usr/local/sbin/polaris-integrated-bringup", stat.S_IFREG | 0o755,
+                (ROOT / "diagnostics/polaris-integrated-bringup").read_bytes())
+            add("usr/local/sbin/polaris-sim-prepare728", stat.S_IFREG | 0o755,
+                (ROOT / "diagnostics/polaris-sim-prepare728.py").read_bytes())
+            add("etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf",
+                stat.S_IFREG | 0o644,
+                (ROOT / "diagnostics/alsa-ucm/90-polaris-audio.conf").read_bytes())
+        else:
+            add("lib/modules/7.2.8-polaris/diag/overlay.ko", stat.S_IFREG | 0o644,
+                read_verified(OVERLAY_MODULE, OVERLAY_MODULE_HASH))
     for name, digest in FIRMWARE_HASHES.items():
         add("lib/firmware/qcom/" + name, stat.S_IFREG | 0o644,
             read_verified(FIRMWARE / name, digest))
@@ -202,7 +230,9 @@ def main() -> None:
     image += ramdisk + b"\0" * (-len(ramdisk) % page)
     if len(image) > 64 * 1024 * 1024:
         raise ValueError("Diagnostic image exceeds recovery size")
-    image_name = ("polaris-linux728-pstore-trace-overlay-diag.img"
+    image_name = ("polaris-linux728-integrated-overlay-diag.img"
+                  if args.integrated else
+                  "polaris-linux728-pstore-trace-overlay-diag.img"
                   if args.pstore_trace else
                   "polaris-linux728-lockup-trace-overlay-diag.img"
                   if args.lockup_trace else
@@ -220,7 +250,9 @@ def main() -> None:
                   if args.reserve_xbl_framebuffer else
                   "polaris-linux728-legacy-dpu-diag.img"
                   if args.legacy_dpu_planes else IMAGE.name)
-    manifest_name = ("pstore-trace-overlay-diag-manifest.json"
+    manifest_name = ("integrated-overlay-diag-manifest.json"
+                     if args.integrated else
+                     "pstore-trace-overlay-diag-manifest.json"
                      if args.pstore_trace else
                      "lockup-trace-overlay-diag-manifest.json"
                      if args.lockup_trace else
@@ -252,6 +284,8 @@ def main() -> None:
         "partition_flash": False,
         "ubuntu_overlay_manual_activation": args.ubuntu_overlay,
         "vendor_firmware_mounted_ro_before_ubuntu": args.overlay_vendor,
+        "modem_firmware_mounted_ro_before_ubuntu": args.integrated,
+        "integrated_hardware_candidate": args.integrated,
         "lockup_trace": args.lockup_trace,
         "pstore_trace": args.pstore_trace,
         "zap_firmware": args.include_zap_firmware,
