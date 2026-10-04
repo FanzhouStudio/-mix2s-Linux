@@ -182,3 +182,10 @@ serial transcript is in
 rules out a simple Xwayland launch failure and a failure of the basic Mihomo
 proxy path, but it does not identify which Clash/WebKit activity or kernel
 subsystem locks the SoC. The recovery partition must remain on 6.1.
+
+The next discriminating test should run the same Clash binary against a
+software-only offscreen X server such as Xvfb while the GNOME display remains
+idle. If that still freezes the phone, the visible scanout/compositor path is
+not required for reproduction. If it remains responsive, compare it with the
+already-failing visible Xwayland launch. Keep the test in a RAM boot and bound
+its runtime; a bound cannot terminate a process after a whole-SoC lockup.
