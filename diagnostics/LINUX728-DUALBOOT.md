@@ -37,9 +37,15 @@ python3 diagnostics/build-linux728-readonly-diag.py \
 
 Output: `artifacts/linux728-polaris-candidate/polaris-linux728-dualboot-persistent-candidate.img`,
 22,073,344 bytes, SHA-256
-`39879481b36eab04608adbb84c90874e082ddd6ff0d894cac6d6bfe6145cb88e`.
+`d094107abac12f7f3bd10f7a5bf0294fa808ac2a60e2cdac1c03f9020a3b6eb1`.
 The Android boot image v0 is below the 64 MiB `boot` partition size.
-This candidate has **not yet been booted or flashed**.
+First temporary boot on 2026-10-05 reached the RAM diagnostic screen but
+**failed to mount `/dev/sda21` read-write**: `mount: mounting /dev/sda21 on
+/newroot failed: Invalid argument`. It has **not been flashed**. The kernel
+log and mount cause must be diagnosed, then a revised image must pass this
+acceptance sequence before any `boot` flash.
+The rebuilt candidate adds ext4/storage kernel messages to the diagnostic
+screen when root mounting fails; its new hash above has not been booted yet.
 
 Its initramfs mounts `vendor` and `modem` read-only and the already prepared
 Ubuntu `userdata` ext4 read-write. It checks the Ubuntu root marker and

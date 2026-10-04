@@ -80,6 +80,10 @@ usb_pid=$!
             echo "UPTIME: $(cut -d ' ' -f 1 /proc/uptime) seconds"
             echo 'Recent init messages:'
             tail -8 /run/init.log
+            if [ "$(cat /run/ubuntu-status)" = FAILED ]; then
+                echo 'Storage kernel messages:'
+                dmesg | grep -Ei 'EXT4|JBD2|sda21|I/O error|ufs|mmc' | tail -5
+            fi
         } >/dev/tty1 2>/dev/null
         sleep 5
     done
