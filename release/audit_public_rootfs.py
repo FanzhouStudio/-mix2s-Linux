@@ -14,6 +14,11 @@ REQUIRED = {
     "etc/sudoers.d/90-polaris",
     "etc/netplan/01-polaris.yaml",
     "usr/lib/systemd/systemd",
+    "etc/systemd/system/polaris-zram.service",
+    "etc/systemd/system/multi-user.target.wants/polaris-zram.service",
+    "usr/local/sbin/polaris-zram-setup",
+    "usr/local/lib/polaris-zram/7.2.8-polaris/zram.ko",
+    "usr/local/lib/polaris-zram/7.2.8-polaris/zsmalloc.ko",
     "home/polaris/.config/monitors.xml",
 }
 ALLOWED_HOME = {

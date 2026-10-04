@@ -62,8 +62,9 @@ Fastboot reported both sending and writing `OKAY`. `recovery`, `userdata`,
 `dtbo`, and `vbmeta` were not flashed. A subsequent ordinary reboot reached
 Ubuntu's `graphical.target` under the installed 7.2.8 boot image. The user
 confirmed the desktop and touch work after the normal boot. Screen keyboard
-and wake worked in the preceding temporary boot. The post-flash 6.1 recovery
-key path remains to be checked separately.
+and wake worked in the preceding temporary boot. On 2026-10-05, after the
+7.2.8 boot flash, Volume Up + Power again entered the 6.1 recovery desktop;
+the user confirmed USB, and the serial console reported `6.1-sdm845`.
 
 Its initramfs mounts `vendor` and `modem` read-only and the already prepared
 Ubuntu `userdata` ext4 read-write. It checks the Ubuntu root marker and
@@ -121,3 +122,14 @@ reported kernel `7.2.8-polaris`, `/dev/zram0` active at 6 GiB and priority
 and active, and GNOME with working touch. The phone root remained
 `/dev/sda21` mounted read-write. No application stress test was run; zram does
 not establish a fix for the known whole-device freezes.
+
+## Public rootfs export attempt
+
+An idle-I/O-priority, rate-limited, read-only tar of the live userdata stalled
+the 7.2.8 kernel on CPU 5 with RCU warnings and blocked I/O tasks. The phone
+required a forced restart. A slower repeat after booting 6.1 recovery also
+stopped responding before the archive completed. Both partial archives were
+discarded. Release v0.2.0-preview.1 instead derives its public rootfs from
+the already audited v0.1.0 snapshot and adds the installed 7.2.8 zram files.
+This is not an exact export of the current private userdata; new-device boot
+of the public combination has not been verified.

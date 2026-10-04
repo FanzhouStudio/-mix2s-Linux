@@ -192,6 +192,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--transport", choices=("ssh", "adb"), default="ssh")
     parser.add_argument("--host")
+    parser.add_argument("--port", type=int, default=22)
     parser.add_argument("--identity", type=Path)
     parser.add_argument("--known-hosts", type=Path)
     parser.add_argument("--adb-bin", type=Path)
@@ -215,7 +216,7 @@ def main() -> None:
             "-C", "/", "-cf", "-", *READ_PATHS,
         ))
         command = (
-            "ssh", "-i", str(args.identity), "-o", "BatchMode=yes",
+            "ssh", "-p", str(args.port), "-i", str(args.identity), "-o", "BatchMode=yes",
             "-o", "Compression=no", "-o", "StrictHostKeyChecking=yes",
             "-o", f"UserKnownHostsFile={args.known_hosts}",
             f"polaris@{args.host}", remote,
