@@ -1,6 +1,6 @@
 [Unit]
 Description=Recover inactive Polaris 7.2.8 display after touch or volume input
-After=display-manager.service
+After=display-manager.service sys-kernel-debug.mount
 ConditionPathExists=/sys/kernel/debug/dri/0/state
 
 [Service]
