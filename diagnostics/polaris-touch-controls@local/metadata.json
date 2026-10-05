@@ -1,0 +1,13 @@
+{
+  "uuid": "polaris-touch-controls@local",
+  "name": "Polaris Touch Controls",
+  "description": "Lock and blank from the panel, and wake the display with touch while the system remains running.",
+  "shell-version": [
+    "50"
+  ],
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ],
+  "version": 4
+}

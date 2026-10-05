@@ -1,0 +1,16 @@
+[Unit]
+Description=Recover inactive Polaris 7.2.8 display after touch or volume input
+After=display-manager.service
+ConditionPathExists=/sys/kernel/debug/dri/0/state
+
+[Service]
+Type=simple
+ExecCondition=/bin/sh -c 'test "$(uname -r)" = 7.2.8-polaris'
+ExecStart=/usr/bin/python3 -u /usr/local/sbin/polaris728-display-recover
+Restart=on-failure
+RestartSec=5
+MemoryMax=64M
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

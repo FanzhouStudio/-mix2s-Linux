@@ -1,0 +1,25 @@
+[Unit]
+Description=Polaris 7.2.8 S3330 double tap listener
+After=systemd-user-sessions.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecCondition=/bin/sh -c 'test "$(uname -r)" = 7.2.8-polaris'
+ExecStart=/usr/bin/python3 -u /usr/local/sbin/polaris-touch-wake
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+Nice=5
+MemoryMax=96M
+
+[Install]
+WantedBy=multi-user.target
