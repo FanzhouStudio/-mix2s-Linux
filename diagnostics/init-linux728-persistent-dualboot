@@ -148,12 +148,16 @@ boot_ubuntu_persistent() {
     chmod 0755 /newroot/usr/local/sbin/polaris-sim-prepare728 || return 1
     cp /usr/local/sbin/polaris728-hardware-start /newroot/usr/local/sbin/polaris728-hardware-start || return 1
     chmod 0755 /newroot/usr/local/sbin/polaris728-hardware-start || return 1
+    cp /usr/local/sbin/polaris728-network-up /newroot/usr/local/sbin/polaris728-network-up || return 1
+    chmod 0755 /newroot/usr/local/sbin/polaris728-network-up || return 1
     mkdir -p /newroot/usr/lib/systemd/system-generators
     cp /usr/lib/systemd/system-generators/polaris728-service-generator /newroot/usr/lib/systemd/system-generators/polaris728-service-generator || return 1
     chmod 0755 /newroot/usr/lib/systemd/system-generators/polaris728-service-generator || return 1
     mkdir -p /newroot/etc/systemd/system/multi-user.target.wants
     cp /etc/systemd/system/polaris728-hardware.service /newroot/etc/systemd/system/polaris728-hardware.service || return 1
     ln -sfn ../polaris728-hardware.service /newroot/etc/systemd/system/multi-user.target.wants/polaris728-hardware.service || return 1
+    cp /etc/systemd/system/polaris728-network.service /newroot/etc/systemd/system/polaris728-network.service || return 1
+    ln -sfn ../polaris728-network.service /newroot/etc/systemd/system/multi-user.target.wants/polaris728-network.service || return 1
     echo 'ROOTFS: applying the 7.2.8 audio format only for this boot'
     mkdir -p /newroot/etc/wireplumber/wireplumber.conf.d
     cp /etc/wireplumber/wireplumber.conf.d/90-polaris-audio.conf /run/polaris728/90-polaris-audio.conf || return 1

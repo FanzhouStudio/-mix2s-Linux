@@ -211,6 +211,11 @@ def main() -> None:
                 add("usr/lib/systemd/system-generators/polaris728-service-generator",
                     stat.S_IFREG | 0o755,
                     (ROOT / "diagnostics/polaris728-service-generator").read_bytes())
+                add("usr/local/sbin/polaris728-network-up", stat.S_IFREG | 0o755,
+                    (ROOT / "diagnostics/polaris728-network-up").read_bytes())
+                add("etc/systemd/system/polaris728-network.service",
+                    stat.S_IFREG | 0o644,
+                    (ROOT / "diagnostics/polaris728-network.service").read_bytes())
             if args.integrated_auto:
                 add("usr/local/sbin/polaris728-hardware-start", stat.S_IFREG | 0o755,
                     (ROOT / "diagnostics/polaris728-hardware-start").read_bytes())

@@ -170,3 +170,32 @@ The only earlier 6.1 boot retained in the journal ended with an orderly
 `systemd-logind` power-off after about 11 hours, which does not establish a
 kernel crash or the cause of the user's reported post-desktop restart. The
 intermittent restart remains unconfirmed rather than fixed.
+
+## 2026-10-06: boot image with staged Wi-Fi and cellular startup
+
+The preceding safe boot image copied an older `polaris-sim-prepare728` from
+its initramfs into userdata on every boot. That copy still invoked `qmicli`
+with `-p`, overriding the direct-QMI fix installed in the shared rootfs. The
+revised persistent boot image bundles the current SIM helper, the staged
+`polaris728-network-up` script, and its systemd unit. Its initramfs copies
+those files to userdata and enables the network unit before `switch_root`.
+The kernel and DTB are unchanged from the safe image.
+
+The revised image is
+`artifacts/linux728-polaris-candidate/polaris-linux728-dualboot-persistent-candidate.img`,
+22,081,536 bytes, SHA-256
+`58ea9ff72a9c40fef26f4532e33ca35d951815554db7bc9e3c2217ac667846f9`.
+The previous safe image was retained as
+`artifacts/linux728-polaris-candidate/polaris-linux728-dualboot-safe-previous.img`
+(SHA-256 `743e0dc2a82b8df3b0100e07c327ab3149db207913594aeba4f8c499ab35c377`).
+
+The revised image reached the GNOME desktop when started with `fastboot boot`.
+Fastboot then reported `product: polaris`, `unlocked: yes`, and a 64 MiB boot
+partition. `fastboot flash boot` reported both sending and writing `OKAY`;
+no other partition was flashed. After ordinary reboot, the user reported
+that the phone advanced from diagnostic text to the GNOME desktop. This boot
+was unusually slow: the network unit occupied the boot transaction for over
+ten minutes before reporting completion. The USB gadget enumerated, but the
+serial getty timed out before the device appeared, so the helper versions and
+live Wi-Fi/cellular state could not be read after flashing. Do not interpret
+the desktop appearance as proof of stable networking or application use.
