@@ -1,0 +1,113 @@
+#!/bin/sh
+# Start 7.2.8 Qualcomm networking after the safe desktop hardware stage.
+# A single attempt is intentional: repeated MSS resets can crash IPA/ath10k.
+set -eu
+
+[ "$(uname -r)" = 7.2.8-polaris ] || exit 0
+modules=/lib/modules/7.2.8-polaris/diag
+
+log() { echo "POLARIS 7.2.8 NETWORK: $*"; }
+module() {
+    name=$1
+    file=$2
+    if [ ! -d "/sys/module/$name" ]; then
+        insmod "$modules/$file"
+    fi
+}
+mss_path() {
+    for item in /sys/class/remoteproc/remoteproc*; do
+        [ -r "$item/name" ] || continue
+        [ "$(cat "$item/name")" = 4080000.remoteproc ] && { echo "$item"; return; }
+    done
+    return 1
+}
+mss_running() { [ "$(cat "$1/state")" = running ]; }
+wait_for() {
+    limit=$1
+    shift
+    n=0
+    while ! "$@"; do
+        [ "$n" -lt "$limit" ] || return 1
+        sleep 2
+        n=$((n + 1))
+    done
+}
+modem_number() {
+    mmcli -L 2>/dev/null | sed -n 's@.*/Modem/\([0-9][0-9]*\).*@\1@p' | head -n 1
+}
+registered() {
+    mmcli -m "$1" --output-keyvalue 2>/dev/null |
+        grep -Eq '^modem\.3gpp\.registration-state[[:space:]]*:[[:space:]]*(home|roaming)$'
+}
+
+# Give udev, the firmware mounts, rmtfs, tqftpserv, and pd-mapper time to
+# settle. The prior full-mode boot brought MSS up during that startup window.
+sleep "${POLARIS_NETWORK_DELAY:-60}"
+systemctl stop ModemManager.service || true
+trap 'systemctl start ModemManager.service || true' EXIT
+
+# IPA must expose rmnet_ipa0 before ModemManager probes the QRTR QMI port.
+# Load it before MSS so the modem sees the host IPA endpoint at power-up.
+module rmnet rmnet.ko
+module ipa ipa.ko
+
+mss=$(mss_path) || { log 'MSS remoteproc missing'; exit 1; }
+if [ "$(cat "$mss/state")" != running ]; then
+    echo start >"$mss/state"
+fi
+wait_for 15 mss_running "$mss" || {
+    log 'MSS did not reach running state'
+    exit 1
+}
+log 'MSS running'
+wait_for 15 test -e /sys/class/net/rmnet_ipa0 || {
+    log 'IPA data port did not appear after MSS startup'
+    exit 1
+}
+log 'IPA data port ready'
+
+# WCN3990 is served over QMI by MSS. Do not force a driver unbind/rebind here.
+if wait_for 25 test -e /sys/class/net/wlan0; then
+    log 'wlan0 appeared'
+else
+    log 'wlan0 absent; continuing to check cellular once'
+fi
+sleep 12
+if [ "$(cat "$mss/state")" != running ]; then
+    log 'MSS stopped during WLAN initialization; aborting cellular setup'
+    exit 1
+fi
+
+# The SIM helper reads the sole present USIM's AID directly from QMI and never
+# prints or stores it. ModemManager must be stopped during this preparation.
+systemctl stop ModemManager.service || true
+if ! /usr/local/sbin/polaris-sim-prepare728; then
+    log 'SIM preparation failed; ModemManager will still restart'
+fi
+systemctl start ModemManager.service
+trap - EXIT
+
+n=0
+modem=
+while [ "$n" -lt 20 ]; do
+    modem=$(modem_number)
+    [ -z "$modem" ] || break
+    sleep 2
+    n=$((n + 1))
+done
+[ -n "$modem" ] || { log 'ModemManager found no modem'; exit 1; }
+log 'ModemManager registered the QMI modem'
+
+if ! registered "$modem"; then
+    mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g || true
+fi
+n=0
+while [ "$n" -lt 25 ]; do
+    registered "$modem" && { log 'cellular registered'; exit 0; }
+    sleep 2
+    n=$((n + 1))
+done
+# A second LTE preference request has completed registration on this device;
+# avoid indefinite requests or modem resets if the network remains unavailable.
+mmcli -m "$modem" --set-allowed-modes='2g|3g|4g' --set-preferred-mode=4g || true
+log 'registration still pending; leaving ModemManager to continue searching'

@@ -1,0 +1,14 @@
+[Unit]
+Description=Polaris 7.2.8 staged Wi-Fi and cellular startup
+After=polaris728-hardware.service display-manager.service
+ConditionPathExists=/sys/class/remoteproc
+
+[Service]
+Type=oneshot
+ExecCondition=/bin/sh -c 'test "$(uname -r)" = 7.2.8-polaris'
+ExecStart=/usr/local/sbin/polaris728-network-up
+RemainAfterExit=yes
+TimeoutStartSec=360
+
+[Install]
+WantedBy=multi-user.target

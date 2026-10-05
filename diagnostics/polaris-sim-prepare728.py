@@ -23,7 +23,7 @@ status = None
 for attempt in range(3):
     try:
         response = subprocess.run(
-            ['qmicli', '-p', '-d', 'qrtr://0', '--uim-get-card-status'],
+            ['qmicli', '-d', 'qrtr://0', '--uim-get-card-status'],
             capture_output=True, text=True, timeout=8, env=env)
         if response.returncode == 0:
             status = response.stdout
@@ -64,7 +64,7 @@ if len(present_cards) != 1 or len(candidates) != 1:
 slot, aid = candidates[0]
 try:
     result = subprocess.run(
-        ['qmicli', '-p', '-d', 'qrtr://0',
+        ['qmicli', '-d', 'qrtr://0',
          f'--uim-change-provisioning-session=slot={slot},activate=yes,session-type=primary-gw-provisioning,aid={aid}'],
         capture_output=True, text=True, timeout=12, env=env)
 except subprocess.TimeoutExpired:
