@@ -160,3 +160,13 @@ reboot then reached the 7.2.8 desktop with the same quick initramfs handoff;
 `recovery` and userdata were not flashed. Wi-Fi and cellular may be absent
 in this safe mode. Long-term stability and the cause of 6.1's reported
 post-desktop power-off/reboot are still under investigation.
+
+After a normal reboot from the revised 7.2.8 image into the unchanged 6.1
+recovery, the user confirmed GNOME and touch. The serial console reported
+`6.1-sdm845`, an active GDM, and `/dev/sda21` mounted read-write. That boot
+remained up for at least 15 minutes at low load without a changed boot ID or
+new shutdown log; a temporary listener saw no unsolicited power-key event.
+The only earlier 6.1 boot retained in the journal ended with an orderly
+`systemd-logind` power-off after about 11 hours, which does not establish a
+kernel crash or the cause of the user's reported post-desktop restart. The
+intermittent restart remains unconfirmed rather than fixed.
