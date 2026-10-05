@@ -61,7 +61,7 @@ setup_usb() {
         while [ ! -c /dev/ttyGS0 ]; do sleep 1; done
         while :; do
             [ -e /run/start-ubuntu-persistent ] && { sleep 1; continue; }
-            setsid -c /bin/sh -i </dev/ttyGS0 >/dev/ttyGS0 2>&1
+            setsid -c /bin/sh -c 'echo $$ >/run/diag-shell.pid; exec /bin/sh -i' </dev/ttyGS0 >/dev/ttyGS0 2>&1
             sleep 1
         done
     fi
@@ -130,6 +130,7 @@ boot_ubuntu_persistent() {
     mkdir -p /newroot
     echo "ROOTFS: mounting $rootdev read-write"
     mount -t ext4 -o rw,noatime "$rootdev" /newroot || return 1
+    echo "ROOTFS: mounted at $(cut -d ' ' -f 1 /proc/uptime)s"
     grep -q "^$rootdev /newroot ext4 rw," /proc/mounts || return 1
     [ -r /newroot/etc/polaris-ubuntu-rootfs ] || return 1
     [ -x /newroot/usr/lib/systemd/systemd ] || return 1
@@ -161,10 +162,20 @@ boot_ubuntu_persistent() {
     mount --bind /run/polaris728/90-polaris-audio.conf "$audio_target" || return 1
     [ -r /newroot/lib/firmware/qcom/sdm845/polaris/a630_zap.mbn ] || return 1
     [ -r /newroot/lib/firmware/qcom/sdm845/polaris/mba.mbn ] || return 1
-    echo 'ROOTFS: stopping initramfs workers before switch_root'
+    echo "ROOTFS: stopping initramfs workers at $(cut -d ' ' -f 1 /proc/uptime)s"
+    if [ -r /run/diag-shell.pid ]; then
+        diag_pid=$(cat /run/diag-shell.pid)
+        kill "$diag_pid" 2>/dev/null || true
+    fi
     kill "$usb_pid" "$screen_pid" 2>/dev/null || true
-    wait "$usb_pid" "$screen_pid" 2>/dev/null || true
-    echo 'ROOTFS: moving virtual filesystems'
+    # An interactive shell blocked on ttyGS0 can keep its supervisor alive.
+    # Do not let a serial host connection delay the switch to Ubuntu forever.
+    sleep 1
+    if [ -n "${diag_pid:-}" ]; then
+        kill -KILL "$diag_pid" 2>/dev/null || true
+    fi
+    kill -KILL "$usb_pid" "$screen_pid" 2>/dev/null || true
+    echo "ROOTFS: moving virtual filesystems at $(cut -d ' ' -f 1 /proc/uptime)s"
     for point in dev proc sys run tmp; do
         mkdir -p "/newroot/$point"
         mount --move "/$point" "/newroot/$point" || return 1

@@ -2,13 +2,21 @@
 # Runs only in the 7.2.8 RAM overlay. Each stage can be inspected in journalctl.
 set -eu
 [ "$(uname -r)" = 7.2.8-polaris ] || exit 0
-# The first automatic boot raced ModemManager against the remote firmware
-# servers. Start the Qualcomm services before ModemManager probes the modem.
+# The modem and forced ath10k rebind have stalled udev/NetworkManager.
+# Keep the earlier full bringup available only with an explicit boot argument.
 systemctl stop ModemManager.service || true
 sleep 2
-/usr/local/sbin/polaris-integrated-bringup core
+if grep -q 'polaris.hardware=full' /proc/cmdline; then
+    /usr/local/sbin/polaris-integrated-bringup core
+else
+    /usr/local/sbin/polaris-integrated-bringup core-safe
+fi
 if ! /usr/local/sbin/polaris-integrated-bringup audio; then
     echo 'POLARIS 7.2.8: audio bringup failed; continuing with networking' >&2
+fi
+if ! grep -q 'polaris.hardware=full' /proc/cmdline; then
+    echo 'POLARIS 7.2.8: safe mode; modem activation and ath10k rebind skipped'
+    exit 0
 fi
 if ! /usr/local/sbin/polaris-integrated-bringup cellular; then
     echo 'POLARIS 7.2.8: cellular bringup failed' >&2

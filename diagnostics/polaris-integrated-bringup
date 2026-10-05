@@ -56,7 +56,7 @@ status() {
 }
 
 case "${1:-status}" in
-    core)
+    core|core-safe)
         load_module rmtfs_mem rmtfs_mem.ko
         load_module reset_qcom_pdc reset-qcom-pdc.ko
         mkdir -p /dev/disk/by-partlabel /tmp/tqftpserv
@@ -70,8 +70,10 @@ case "${1:-status}" in
         start_qcom_tool rmtfs -r -P -v
         start_qcom_tool tqftpserv
         start_qcom_tool pd-mapper
-        start_remoteproc 4080000.remoteproc
-        sleep 5
+        if [ "$1" = core ]; then
+            start_remoteproc 4080000.remoteproc
+            sleep 5
+        fi
         status
         ;;
     audio)
@@ -109,7 +111,7 @@ case "${1:-status}" in
         status
         ;;
     *)
-        echo 'Usage: polaris-integrated-bringup {core|audio|cellular|status}' >&2
+        echo 'Usage: polaris-integrated-bringup {core|core-safe|audio|cellular|status}' >&2
         exit 2
         ;;
 esac
