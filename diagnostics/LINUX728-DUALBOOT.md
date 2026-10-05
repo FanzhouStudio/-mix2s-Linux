@@ -133,3 +133,30 @@ discarded. Release v0.2.0-preview.1 instead derives its public rootfs from
 the already audited v0.1.0 snapshot and adds the installed 7.2.8 zram files.
 This is not an exact export of the current private userdata; new-device boot
 of the public combination has not been verified.
+
+## 2026-10-06: bounded boot handoff and safe hardware startup
+
+The original 7.2.8 boot image sometimes remained on its diagnostic screen
+despite mounting `/dev/sda21` at about 14 seconds. One observed boot did not
+start GNOME until about 75 minutes later. Its initramfs unconditionally
+`wait`ed for the USB diagnostic shell supervisor before `switch_root`.
+The revised initramfs records the diagnostic shell PID, stops the workers,
+and proceeds without an unbounded wait. In a temporary boot, it mounted
+userdata at 13.83 seconds, moved the virtual filesystems at 14.89 seconds,
+and reached GNOME in about a minute. The same handoff times were observed
+after flashing the revised image to `boot` and rebooting normally.
+
+Automatic full hardware bringup caused repeated modem firmware crashes and
+`ath10k` errors. During one temporary boot, the forced Wi-Fi unbind/rebind
+left NetworkManager, the hardware service, and udev workers in D state;
+17 tasks were blocked and the load average exceeded 17. The safer default
+starts the Qualcomm firmware servers and audio DSP but does not explicitly
+start the modem, configure cellular service, or force a Wi-Fi driver rebind.
+The earlier full bringup remains gated behind `polaris.hardware=full` in
+the kernel command line. The safe candidate showed zero D-state tasks and
+low load after seven minutes; the user confirmed GNOME, touch, and screen
+keyboard. It was flashed only to `boot` after that temporary run. A normal
+reboot then reached the 7.2.8 desktop with the same quick initramfs handoff;
+`recovery` and userdata were not flashed. Wi-Fi and cellular may be absent
+in this safe mode. Long-term stability and the cause of 6.1's reported
+post-desktop power-off/reboot are still under investigation.
